@@ -1,5 +1,5 @@
 name = "ai-capture-analyser"
-main = "src/index.py"
+main = "src/index.ts"
 compatibility_date = "2025-08-26"
 
 routes = [
