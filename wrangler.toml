@@ -1,5 +1,5 @@
 # wrangler.toml
-name = "packet-analyzer"
+name = "ai-capture-analyser"
 main = "src/index.py"
 compatibility_date = "2025-08-26"
 compatibility_flags = ["python_workers"]
