@@ -249,7 +249,6 @@ class Router:
         except Exception as e:
             return Response(f"An error occurred: {str(e)}", status=500)
 
-# --- Type hints were removed to fix the NameError ---
 async def on_fetch(request, env):
     router = Router(env)
     return await router.route(request)
