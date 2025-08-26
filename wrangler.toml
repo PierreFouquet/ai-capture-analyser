@@ -3,7 +3,7 @@ main = "src/index.ts"
 compatibility_date = "2025-08-26"
 
 routes = [
-  { pattern = "ai-capture.pierrefouquet.co.uk", custom_domain = true }
+  { pattern = "ai-capture-analyser.pierrefouquet.co.uk", custom_domain = true }
 ]
 
 [assets]
