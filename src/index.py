@@ -5,7 +5,6 @@ import os
 import json
 import asyncio
 from typing import Literal
-from durable_objects import DurableObject
 import llm_utils
 import report_renderer
 
@@ -18,7 +17,7 @@ fetch = None # This will be set by the runtime
 
 # The following classes are defined for Python Workers and are automatically exported
 # Durable Objects are stateful and persist data across requests.
-class AnalysisObject(DurableObject):
+class AnalysisObject:
     def __init__(self, state, env):
         self.state = state
         self.env = env
@@ -26,9 +25,8 @@ class AnalysisObject(DurableObject):
         self.result = {}
         self.llm_utils = llm_utils
 
-        # A hack to get around the lambda assignment syntax error
         # We need to load the status from storage in an async manner
-        # but the constructor is sync. We'll handle this in a method.
+        # but the constructor is sync. We'll handle this with a promise.
         self.state.storage.get("status").then(lambda s: setattr(self, 'status', s if s else self.status))
 
     async def fetch(self, request: Request) -> Response:
@@ -130,4 +128,3 @@ class Router:
 async def on_fetch(request: Request, env):
     router = Router(env)
     return await router.route(request)
-
