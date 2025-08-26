@@ -1,3 +1,4 @@
+# wrangler.toml
 name = "packet-analyzer"
 main = "src/index.py"
 compatibility_date = "2025-08-26"
@@ -13,9 +14,8 @@ bucket = "./public" # Specifies the directory for static assets
 [ai]
 binding = "AI"
 
-[[durable_objects]]
-binding = "ANALYSIS_OBJECT"
-class_name = "AnalysisObject"
+[durable_objects]
+bindings = [{ name = "ANALYSIS_OBJECT", class_name = "AnalysisObject" }]
 
 [[durable_objects.migrations]]
 tag = "v1"
