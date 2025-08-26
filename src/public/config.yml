@@ -1,0 +1,136 @@
+# Paths for input PCAP files and output reports
+paths:
+  pcap_folder: ~/Downloads # Folder where your .pcap and .pcapng files are located
+  output_folder_analysis: ~/Downloads/Reports/Analysis # Output folder for individual PCAP analysis reports
+  output_folder_comparisons: ~/Downloads/Reports/Comparisons # Output folder for PCAP comparison reports
+  combined_reports_html: ~/Downloads/Reports/reports.html # Path for the combined HTML report
+
+# LLM Prompts
+llm_prompts:
+  # Prompt for analyse.py
+  analysis_pcap_explanation: |
+    You are a network security analyst. Analyze the following packet capture data.
+    Provide a detailed explanation covering:
+    - Overall traffic summary and key protocols.
+    - Identification of any anomalies, errors, or suspicious activities.
+    - If SIP or RTP traffic is present, describe the call flow and identify potential issues.
+    - Important timestamps or packet numbers if relevant.
+    
+    **Configured VoIP Ports:**
+    - SIP UDP Ports: {sip_udp_ports}
+    - SIP TCP Ports: {sip_tcp_ports}
+    - SIP TLS Ports: {sip_tls_ports}
+    - RTP UDP Ports: {rtp_udp_ports}
+
+    Respond strictly in JSON format according to the schema provided.
+    ---
+    PCAP Data Snippet:
+    {pcap_data_snippet}
+
+  analysis_pcap_explanation_schema:
+    type: object
+    properties:
+      summary:
+        type: string
+        description: "Overall traffic summary and key protocols identified."
+      anomalies_and_errors:
+        type: array
+        items:
+          type: string
+          description: "List of identified anomalies or errors."
+      sip_rtp_info:
+        type: string
+        description: "Description of call flow and potential issues if SIP/RTP is present."
+      important_timestamps_packets:
+        type: string
+        description: "Important timestamps or packet numbers related to findings."
+
+  # Prompt for compare.py
+  comparison_explanation: |
+    You are a network security analyst. Compare the two provided packet capture data snippets.
+    Provide a detailed comparison covering:
+    - Overall traffic differences and similarities.
+    - Key differences in protocols, endpoints, or data flow.
+    - Identification of any new or missing suspicious activities.
+    - A final summary of which capture appears more benign or malicious, and why.
+
+    Respond strictly in JSON format according to the schema provided.
+    ---
+    PCAP Data Snippet 1:
+    {pcap_data_snippet1}
+
+    PCAP Data Snippet 2:
+    {pcap_data_snippet2}
+
+  comparison_explanation_schema:
+    type: object
+    properties:
+      overall_comparison_summary:
+        type: string
+        description: "Overall summary of the comparison."
+      key_differences:
+        type: array
+        items:
+          type: string
+          description: "List of key differences between the two captures."
+      final_verdict:
+        type: string
+        description: "A final verdict on the captures' security posture."
+
+# Protocol Ports (Configured here, clients initialized in script)
+protocol_ports:
+  sip_udp_ports:
+    - 5060
+  sip_tcp_ports:
+    - 5060
+  sip_tls_ports:
+    - 5061
+  rtp_udp_ports:
+    - 16384
+    - 32768
+  # Additional ports for other protocols if needed (e.g., HTTP, DNS)
+  other_ports:
+    - 80
+    - 443
+    - 53
+    - 22
+
+# LLM Models (Configured here, clients initialized in script)
+llm_models:
+  # Google Gemini Models
+  gemini-2.5-pro:
+    name: gemini-2.5-pro
+    provider: Google
+    cloudflare_name: "@cf/google/gemini-pro"
+  gemini-2.5-flash:
+    name: gemini-2.5-flash
+    provider: Google
+    cloudflare_name: "@cf/google/gemma-7b-it" # A compatible model for demonstration
+
+  # OpenAI Models
+  o4-mini:
+    name: o4-mini
+    provider: OpenAI
+    cloudflare_name: "@cf/openai/gpt-4o"
+  gpt-4o:
+    name: gpt-4o
+    provider: OpenAI
+    cloudflare_name: "@cf/openai/gpt-4o"
+
+  # Hugging Face Models
+  mistral-7b-instruct:
+    name: mistral-7b-instruct
+    provider: HuggingFace
+    cloudflare_name: "@cf/mistral/mistral-7b-instruct"
+  llama-2-7b-chat:
+    name: llama-2-7b-chat
+    provider: Meta
+    cloudflare_name: "@cf/meta/llama-2-7b-chat-fp16"
+  starling-lm-7b-beta:
+    name: starling-lm-7b-beta
+    provider: Nexusflow
+    cloudflare_name: "@cf/nexusflow/starling-lm-7b-beta"
+  deepseek-r1-distill-qwen-32b:
+    name: deepseek-r1-distill-qwen-32b
+    provider: Deepseek
+    cloudflare_name: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b"
