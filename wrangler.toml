@@ -1,6 +1,7 @@
 name = "packet-analyzer"
 main = "src/index.py"
 compatibility_date = "2025-08-26"
+compatibility_flags = ["python_workers"]
 
 routes = [
   { pattern = "ai-capture.pierrefouquet.co.uk", custom_domain = true }
