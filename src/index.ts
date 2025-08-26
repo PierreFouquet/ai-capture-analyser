@@ -185,7 +185,7 @@ export default {
             return stub.fetch(request);
         }
 
-        // Serve static assets as a fallback for all other requests
+        // Serve all other requests from the ASSETS binding
         return env.ASSETS.fetch(request);
     }
 };
