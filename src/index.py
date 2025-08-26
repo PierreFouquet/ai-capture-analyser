@@ -10,20 +10,6 @@ import functools
 import datetime
 from typing import Literal, Optional, List, Dict, Any
 
-# NOTE: The following imports are placeholders. You would need to ensure these libraries
-# are available in the Cloudflare Workers environment or use their built-in equivalents.
-# In a real-world scenario, you might use 'urllib3' or 'httpcore' which are often available.
-# This code assumes a simple 'fetch' function is provided by the runtime.
-
-# --- Cloudflare Worker Imports ---
-from _worker import Request, Response
-
-# --- Global Configuration and Utilities ---
-
-# Load environment variables. Not needed in a worker env as bindings handle secrets.
-# from dotenv import load_dotenv
-# load_dotenv()
-
 # --- Logging ---
 logger = logging.getLogger(__name__)
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
