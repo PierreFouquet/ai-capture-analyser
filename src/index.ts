@@ -174,11 +174,7 @@ export default {
     async fetch(request: Request, env: Env): Promise<Response> {
         const url = new URL(request.url);
 
-        // Serve static assets from the ASSETS binding
-        if (url.pathname === "/") {
-            return env.ASSETS.fetch(request);
-        }
-
+        // API endpoints
         if (url.pathname.startsWith("/api/analyze")) {
             // Get or create a Durable Object for this session
             const sessionId = request.headers.get("X-Session-ID") || "default";
@@ -189,6 +185,7 @@ export default {
             return stub.fetch(request);
         }
 
-        return new Response("Not Found", { status: 404 });
+        // Serve static assets as a fallback for all other requests
+        return env.ASSETS.fetch(request);
     }
 };

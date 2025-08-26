@@ -22,3 +22,7 @@ new_sqlite_classes = [ "AnalysisObject" ]
 
 [observability]
 enabled = true
+
+[build]
+command = "npm install && npm run build"
+watch_dir = "./src"
