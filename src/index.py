@@ -1,5 +1,3 @@
-# src/index.py
-
 import sys
 import os
 import json
@@ -160,9 +158,11 @@ class AnalysisObject:
         # but the constructor is sync. We'll handle this with a promise.
         self.state.storage.get("status").then(lambda s: setattr(self, 'status', s if s else self.status))
 
-    async def fetch(self, request: Request) -> Response:
+    # --- Type hints for Request and Response were removed to fix the NameError ---
+    async def fetch(self, request):
         try:
-            url_path = request.url.path
+            # We use request.path instead of request.url.path
+            url_path = request.path
             
             # Route based on the URL path
             if url_path.endswith("/status"):
@@ -174,12 +174,12 @@ class AnalysisObject:
         except Exception as e:
             return Response(f"An error occurred: {str(e)}", status=500)
 
-    def handle_status_request(self) -> Response:
+    def handle_status_request(self):
         # A simple status endpoint
         return Response(json.dumps({"status": self.status, "result": self.result}),
                         headers={"Content-Type": "application/json"})
 
-    async def handle_process_request(self, request: Request) -> Response:
+    async def handle_process_request(self, request):
         if self.status != "idle":
             return Response("Already processing a request.", status=409)
 
@@ -232,13 +232,15 @@ class Router:
     def __init__(self, env):
         self.env = env
 
-    async def route(self, request: Request) -> Response:
+    # --- Type hints were removed to fix the NameError ---
+    async def route(self, request):
         try:
-            url = request.url
-            if url.path == "/":
+            # We use request.path instead of request.url.path
+            url_path = request.path
+            if url_path == "/":
                 return self.env.ASSETS.fetch(request)
 
-            if url.path.startswith("/api/analyze"):
+            if url_path.startswith("/api/analyze"):
                 session_id = request.headers.get("X-Session-ID") or "default"
                 stub = self.env.ANALYSIS_OBJECT.get(self.env.ANALYSIS_OBJECT.id_from_name(session_id))
                 return stub.fetch(request)
@@ -247,6 +249,7 @@ class Router:
         except Exception as e:
             return Response(f"An error occurred: {str(e)}", status=500)
 
-async def on_fetch(request: Request, env):
+# --- Type hints were removed to fix the NameError ---
+async def on_fetch(request, env):
     router = Router(env)
     return await router.route(request)
