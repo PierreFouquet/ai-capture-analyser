@@ -15,6 +15,9 @@ from typing import Literal, Optional, List, Dict, Any
 # In a real-world scenario, you might use 'urllib3' or 'httpcore' which are often available.
 # This code assumes a simple 'fetch' function is provided by the runtime.
 
+# --- Cloudflare Worker Imports ---
+from _worker import Request, Response
+
 # --- Global Configuration and Utilities ---
 
 # Load environment variables. Not needed in a worker env as bindings handle secrets.
