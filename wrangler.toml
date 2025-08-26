@@ -19,3 +19,6 @@ bindings = [{ name = "ANALYSIS_OBJECT", class_name = "AnalysisObject" }]
 [[migrations]]
 tag = "v1"
 new_sqlite_classes = [ "AnalysisObject" ]
+
+[observability]
+enabled = true
