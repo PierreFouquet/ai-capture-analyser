@@ -1,3 +1,5 @@
+# src/index.py
+
 import sys
 import os
 import json
@@ -228,27 +230,19 @@ class AnalysisObject:
 async def on_startup(env):
     initialize_llm_clients(env.config)
 
-class Router:
-    def __init__(self, env):
-        self.env = env
-
-    # --- Type hints were removed to fix the NameError ---
-    async def route(self, request):
-        try:
-            # We use request.path instead of request.url.path
-            url_path = request.path
-            if url_path == "/":
-                return self.env.ASSETS.fetch(request)
-
-            if url_path.startswith("/api/analyze"):
-                session_id = request.headers.get("X-Session-ID") or "default"
-                stub = self.env.ANALYSIS_OBJECT.get(self.env.ANALYSIS_OBJECT.id_from_name(session_id))
-                return stub.fetch(request)
-
-            return Response("Not Found", status=404)
-        except Exception as e:
-            return Response(f"An error occurred: {str(e)}", status=500)
-
+# --- The on_fetch handler is now defined here at the top level to be correctly recognized ---
 async def on_fetch(request, env):
-    router = Router(env)
-    return await router.route(request)
+    try:
+        url_path = request.path
+        if url_path == "/":
+            return env.ASSETS.fetch(request)
+
+        if url_path.startswith("/api/analyze"):
+            session_id = request.headers.get("X-Session-ID") or "default"
+            stub = env.ANALYSIS_OBJECT.get(env.ANALYSIS_OBJECT.id_from_name(session_id))
+            # The stub's fetch is now awaited
+            return await stub.fetch(request)
+
+        return Response("Not Found", status=404)
+    except Exception as e:
+        return Response(f"An error occurred: {str(e)}", status=500)
