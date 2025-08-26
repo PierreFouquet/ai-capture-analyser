@@ -2,6 +2,10 @@ name = "packet-analyzer"
 main = "src/index.py"
 compatibility_date = "2025-08-26"
 
+routes = [
+  { pattern = "ai-capture.pierrefouquet.co.uk", custom_domain = true }
+]
+
 [site]
 bucket = "./public" # Specifies the directory for static assets
 
