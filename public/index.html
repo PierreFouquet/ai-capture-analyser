@@ -5,11 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>PCAP Analyzer & Comparator</title>
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/pcap-parser@1.0.0/dist/pcap-parser.min.js"></script>
-    <script type="module" src="script.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="script.js" type="module"></script>
     <style>
         @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
         body { font-family: 'Inter', sans-serif; }
+        .message-box {
+            position: fixed;
+            top: 2rem;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 50;
+        }
     </style>
 </head>
 <body class="bg-gray-100 p-8 flex flex-col items-center min-h-screen">
@@ -19,6 +26,12 @@
         <p class="text-center text-gray-600 mb-8">
             Upload a PCAP file to analyze or compare network traffic. The analysis will be performed by a powerful LLM.
         </p>
+
+        <!-- The custom message box -->
+        <div id="message-box" class="message-box bg-red-100 border-l-4 border-red-500 text-red-700 p-4 rounded-md shadow-lg hidden">
+            <p id="message-text" class="font-medium"></p>
+            <button id="message-close" class="ml-auto text-red-500 hover:text-red-700 transition-colors">&times;</button>
+        </div>
 
         <div class="grid grid-cols-1 md:grid-cols-2 gap-8 mb-8">
             <!-- Analysis Section -->
@@ -70,20 +83,15 @@
         </div>
 
         <!-- Status and Report Section -->
-        <div id="status-card" class="bg-white p-6 rounded-lg shadow-md border border-gray-200 mb-8 hidden">
-            <div class="flex items-center justify-between mb-2">
-                <h2 class="text-xl font-semibold text-gray-700">Job Status: <span id="job-status" class="font-normal text-gray-500"></span></h2>
-                <button id="check-status-btn" class="bg-gray-200 text-gray-700 py-1 px-3 rounded-md text-sm hover:bg-gray-300">Refresh Status</button>
+        <div class="w-full max-w-4xl bg-white p-8 rounded-xl shadow-lg">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4">Report</h2>
+            <div id="loading-indicator" class="hidden flex justify-center items-center py-8">
+                <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-900"></div>
             </div>
-            <div id="job-id-display" class="text-sm text-gray-500 mb-4"></div>
-            <div id="report-output" class="prose max-w-none text-gray-800"></div>
-            <div id="loading-indicator" class="hidden flex justify-center items-center mt-4">
-                <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-gray-900"></div>
+            <div id="report-container" class="prose max-w-none text-gray-800">
+                <p class="text-center text-gray-500">Your analysis or comparison report will appear here.</p>
             </div>
         </div>
     </div>
-
-    <script src="script.js"></script>
-
 </body>
 </html>
