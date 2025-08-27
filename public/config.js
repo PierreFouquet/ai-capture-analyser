@@ -1,0 +1,142 @@
+// This file contains the configuration for the application.
+
+// llm_models: A list of available LLM models.
+export const llm_models = {
+    "gemini-2.5-pro": {
+        name: "gemini-2.5-pro",
+        provider: "Google"
+    },
+    "gemini-2.5-flash": {
+        name: "gemini-2.5-flash",
+        provider: "Google"
+    },
+    "gemini-2.5-flash-lite-preview": {
+        name: "gemini-2.5-flash-lite-preview-06-17",
+        provider: "Google"
+    },
+    "o4-mini": {
+        name: "o4-mini",
+        provider: "OpenAI"
+    },
+    "gpt-4.1": {
+        name: "gpt-4.1",
+        provider: "OpenAI"
+    },
+    "gpt-4o": {
+        name: "gpt-4o",
+        provider: "OpenAI"
+    },
+    "deepseek-reasoner": {
+        name: "deepseek-reasoner",
+        provider: "Deepseek"
+    },
+    "deepseek-chat": {
+        name: "deepseek-chat",
+        provider: "Deepseek"
+    },
+    "claude-opus-4-0": {
+        name: "claude-opus-4-0",
+        provider: "Anthropic"
+    },
+    "claude-sonnet-4-0": {
+        name: "claude-sonnet-4-0",
+        provider: "Anthropic"
+    }
+};
+
+// llm_settings: Default model to use.
+export const llm_settings = {
+    default_llm_model_analysis: "gemini-2.5-pro",
+    default_llm_model_comparison: "gemini-2.5-flash",
+    async_mode_enabled: true
+};
+
+// llm_prompts: Prompts for the LLM models.
+export const llm_prompts = {
+    analysis_pcap_explanation: `You are a network security analyst. Analyze the following packet capture data.
+    Provide a detailed explanation covering:
+    - Overall traffic summary and key protocols.
+    - Identification of any anomalies, errors, or suspicious activities.
+    - If SIP or RTP traffic is present, describe the call flow and identify potential issues.
+    - Important timestamps or packet numbers if relevant.
+    
+    Respond strictly in JSON format according to the schema provided.
+    ---
+    PCAP Data Snippet:
+    {pcap_data_snippet}`,
+    analysis_pcap_explanation_schema: {
+        type: "object",
+        properties: {
+            summary: {
+                type: "string",
+                description: "Overall traffic summary and key protocols identified."
+            },
+            anomalies_and_errors: {
+                type: "array",
+                items: {
+                    type: "string"
+                },
+                description: "List of identified anomalies, errors, or suspicious activities."
+            },
+            sip_rtp_info: {
+                type: "string",
+                description: "Detailed information about SIP/RTP traffic if present, otherwise 'N/A'."
+            },
+            important_timestamps_packets: {
+                type: "string",
+                description: "Key timestamps or packet numbers relevant to the analysis, otherwise 'N/A'."
+            }
+        },
+        required: ["summary", "anomalies_and_errors", "sip_rtp_info", "important_timestamps_packets"]
+    },
+    comparison_pcap_explanation: `You are a network security analyst. Compare the following two packet capture data snippets.
+    Provide a detailed explanation covering:
+    - An overall summary of the comparison.
+    - A list of key differences between the two captures.
+    - A list of key similarities between the two captures.
+    - An analysis of any security implications or risks identified.
+    - Important timestamps or packet numbers if relevant to the comparison.
+
+    Respond strictly in JSON format according to the schema provided.
+    ---
+    PCAP 1 Snippet ({label1}):
+    {pcap_data_snippet1}
+    ---
+    PCAP 2 Snippet ({label2}):
+    {pcap_data_snippet2}`,
+    comparison_pcap_explanation_schema: {
+        type: "object",
+        properties: {
+            overall_comparison_summary: {
+                type: "string",
+                description: "Overall summary of the comparison."
+            },
+            key_differences: {
+                type: "array",
+                items: {
+                    type: "string"
+                },
+                description: "List of key differences between the two captures."
+            },
+            key_similarities: {
+                type: "array",
+                items: {
+                    type: "string"
+                },
+                description: "List of key similarities between the two captures."
+            },
+            security_implications: {
+                type: "array",
+                items: {
+                    type: "string"
+                },
+                description: "Analysis of any security implications or risks identified."
+            },
+            important_timestamps_packets: {
+                type: "string",
+                description: "Key timestamps or packet numbers relevant to the comparison, otherwise 'N/A'."
+            }
+        },
+        required: ["overall_comparison_summary", "key_differences", "key_similarities", "security_implications", "important_timestamps_packets"]
+    },
+};

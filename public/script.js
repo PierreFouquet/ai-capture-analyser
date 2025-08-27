@@ -1,4 +1,6 @@
+// public/script.js
 import { marked } from "https://cdn.jsdelivr.net/npm/marked/marked.min.js";
+import { llm_models, llm_settings, llm_prompts } from "./config.js";
 
 // Utility to handle form and report display
 const form = document.getElementById('analysis-form');
@@ -6,27 +8,28 @@ const pcapFile = document.getElementById('pcap-file');
 const llmModelSelect = document.getElementById('llm-model');
 const reportContainer = document.getElementById('report-container');
 const loadingIndicator = document.getElementById('loading-indicator');
+const messageBox = document.getElementById('message-box');
+const messageText = document.getElementById('message-text');
+const messageClose = document.getElementById('message-close');
 
-let config = {}; // Store the loaded configuration
+let config = { llm_models, llm_settings, llm_prompts }; // Use the imported config
 
-// Function to fetch the YAML config file
-async function fetchConfig() {
-    try {
-        const response = await fetch('/config.yaml');
-        if (!response.ok) {
-            throw new Error(`Failed to load config.yaml`);
-        }
-        const text = await response.text();
-        return jsyaml.load(text);
-    } catch (e) {
-        console.error("Error fetching config:", e);
-        return null;
-    }
+// Function to show a custom message box
+function showMessage(message) {
+    messageText.textContent = message;
+    messageBox.style.display = 'flex';
 }
 
+// Function to hide the custom message box
+function hideMessage() {
+    messageBox.style.display = 'none';
+}
+
+// Event listener to close the message box
+messageClose.addEventListener('click', hideMessage);
+
 // Function to populate the LLM model dropdown
-async function populateLlmModels() {
-    config = await fetchConfig();
+function populateLlmModels() {
     if (config && config.llm_models) {
         const models = Object.entries(config.llm_models).map(([key, value]) => ({
             key,
@@ -60,13 +63,19 @@ form.addEventListener('submit', async (e) => {
     const sessionId = 'pcap-analysis-' + Date.now(); // Create a unique session ID
 
     if (!file) {
-        alert('Please select a PCAP file.');
+        showMessage('Please select a PCAP file.');
         loadingIndicator.style.display = 'none';
         return;
     }
 
     try {
-        const pcapData = await file.text(); // Assuming PCAP is text-based for this mock
+        // Read the file as an ArrayBuffer since PCAP files are binary
+        const arrayBuffer = await file.arrayBuffer();
+        
+        // Convert ArrayBuffer to Base64 string for safe transmission
+        const base64PcapData = btoa(
+            String.fromCharCode(...new Uint8Array(arrayBuffer))
+        );
         
         const response = await fetch('/api/analyze', {
             method: 'POST',
@@ -75,7 +84,7 @@ form.addEventListener('submit', async (e) => {
                 'X-Session-ID': sessionId,
             },
             body: JSON.stringify({
-                pcap_data: pcapData,
+                pcap_data: base64PcapData,
                 file_name: file.name,
                 llm_model_key: llmModelKey,
             }),
