@@ -27,7 +27,7 @@ export class Backend {
         const base64PcapData = this.arrayBufferToBase64(arrayBuffer);
 
         try {
-            // Use the correct API endpoint and pass the action as part of the body
+            // Use the single, unified API endpoint
             const response = await fetch('/api/analyze', {
                 method: 'POST',
                 headers: {
@@ -35,7 +35,7 @@ export class Backend {
                     'X-Session-ID': this.sessionId
                 },
                 body: JSON.stringify({
-                    action: 'process',
+                    type: 'analysis',
                     pcap_data: base64PcapData,
                     file_name: file.name,
                     llm_model_key: llmModelKey,
@@ -63,15 +63,15 @@ export class Backend {
         const base64PcapData2 = this.arrayBufferToBase64(arrayBuffer2);
         
         try {
-            // Use the correct API endpoint
-            const response = await fetch('/api/compare', {
+            // Use the single, unified API endpoint
+            const response = await fetch('/api/analyze', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Session-ID': this.sessionId
                 },
                 body: JSON.stringify({
-                    action: 'process',
+                    type: 'comparison',
                     pcap_data1: base64PcapData1,
                     file_name1: file1.name,
                     pcap_data2: base64PcapData2,
@@ -86,7 +86,7 @@ export class Backend {
             }
 
             // Start polling the status endpoint to get the final result
-            return this.pollStatus('/api/compare/status');
+            return this.pollStatus('/api/analyze/status');
         } catch (error) {
             console.error('API call failed:', error);
             throw error;

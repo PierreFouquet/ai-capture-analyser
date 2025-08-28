@@ -39,10 +39,8 @@ export class AnalysisObject {
         try {
             if (path.endsWith("/status")) {
                 return this.handleStatusRequest();
-            } else if (path.endsWith("/process")) {
+            } else if (path.endsWith("/analyze")) {
                 return await this.handleProcessRequest(request);
-            } else if (path.endsWith("/compare-process")) {
-                return await this.handleCompareRequest(request);
             } else {
                 return new Response("Not Found", { status: 404 });
             }
@@ -72,78 +70,72 @@ export class AnalysisObject {
 
         try {
             const requestBody = await request.json();
-            const { pcap_data, file_name, llm_model_key } = requestBody;
+            const { type, llm_model_key } = requestBody;
 
-            // Simulate parsing the PCAP data
-            const decodedData = this.b64ToArrayBuffer(pcap_data);
-            const pcapSnippet = this.extractPcapSnippet(decodedData, 2048);
+            if (type === 'analysis') {
+                const { pcap_data, file_name } = requestBody;
+                // Simulate parsing the PCAP data
+                const decodedData = this.b64ToArrayBuffer(pcap_data);
+                const pcapSnippet = this.extractPcapSnippet(decodedData, 2048);
 
-            // Use Cloudflare Workers AI to generate the analysis
-            const response = await this.env.AI.run(llm_model_key, {
-                prompt: this.formatPrompt('analysis', {
-                    pcap_data_snippet: pcapSnippet,
-                    file_name: file_name,
-                }),
-                ...llm_settings,
-                prompt_schema: llm_prompts.analysis_pcap_schema
-            });
+                // Use Cloudflare Workers AI to generate the analysis
+                const response = await this.env.AI.run(llm_model_key, {
+                    prompt: this.formatPrompt('analysis', {
+                        pcap_data_snippet: pcapSnippet,
+                        file_name: file_name,
+                    }),
+                    ...llm_settings,
+                    prompt_schema: llm_prompts.analysis_pcap_schema
+                });
 
-            this.result = response;
-            this.status = 'complete';
-            await this.state.storage.put({ status: this.status, result: this.result, error: null });
+                this.result = response;
+                this.status = 'complete';
+                await this.state.storage.put({ status: this.status, result: this.result, error: null });
 
-            return new Response(JSON.stringify({ status: this.status, result: this.result }), {
-                headers: { 'Content-Type': 'application/json' }
-            });
+                return new Response(JSON.stringify({ status: this.status, result: this.result }), {
+                    headers: { 'Content-Type': 'application/json' }
+                });
+
+            } else if (type === 'comparison') {
+                const { pcap_data1, pcap_data2, file_name1, file_name2 } = requestBody;
+                
+                // Simulate parsing and extracting snippets
+                const decodedData1 = this.b64ToArrayBuffer(pcap_data1);
+                const pcapSnippet1 = this.extractPcapSnippet(decodedData1, 2048);
+                const decodedData2 = this.b64ToArrayBuffer(pcap_data2);
+                const pcapSnippet2 = this.extractPcapSnippet(decodedData2, 2048);
+    
+                // Use Cloudflare Workers AI to generate the comparison
+                const response = await this.env.AI.run(llm_model_key, {
+                    prompt: this.formatPrompt('comparison', {
+                        pcap_data_snippet1: pcapSnippet1,
+                        pcap_data_snippet2: pcapSnippet2,
+                        label1: file_name1,
+                        label2: file_name2,
+                    }),
+                    ...llm_settings,
+                    prompt_schema: llm_prompts.comparison_pcap_explanation_schema
+                });
+
+                this.result = response;
+                this.status = 'complete';
+                await this.state.storage.put({ status: this.status, result: this.result, error: null });
+
+                return new Response(JSON.stringify({ status: this.status, result: this.result }), {
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            } else {
+                this.status = 'error';
+                this.error = 'Invalid analysis type provided.';
+                await this.state.storage.put({ status: this.status, result: null, error: this.error });
+                return new Response(JSON.stringify({ status: this.status, error: this.error }), {
+                    headers: { 'Content-Type': 'application/json' }
+                });
+            }
 
         } catch (e: any) {
             this.status = 'error';
             this.error = `Analysis failed: ${e.message}`;
-            await this.state.storage.put({ status: this.status, result: null, error: this.error });
-            return new Response(JSON.stringify({ status: this.status, error: this.error }), {
-                headers: { 'Content-Type': 'application/json' }
-            });
-        }
-    }
-
-    private async handleCompareRequest(request: Request): Promise<Response> {
-        this.status = 'processing';
-        this.result = null;
-        this.error = null;
-        await this.state.storage.put({ status: this.status, result: null, error: null });
-
-        try {
-            const requestBody = await request.json();
-            const { pcap_data1, pcap_data2, file_name1, file_name2, llm_model_key } = requestBody;
-
-            // Simulate parsing and extracting snippets
-            const decodedData1 = this.b64ToArrayBuffer(pcap_data1);
-            const pcapSnippet1 = this.extractPcapSnippet(decodedData1, 2048);
-            const decodedData2 = this.b64ToArrayBuffer(pcap_data2);
-            const pcapSnippet2 = this.extractPcapSnippet(decodedData2, 2048);
-
-            // Use Cloudflare Workers AI to generate the comparison
-            const response = await this.env.AI.run(llm_model_key, {
-                prompt: this.formatPrompt('comparison', {
-                    pcap_data_snippet1: pcapSnippet1,
-                    pcap_data_snippet2: pcapSnippet2,
-                    label1: file_name1,
-                    label2: file_name2,
-                }),
-                ...llm_settings,
-                prompt_schema: llm_prompts.comparison_pcap_explanation_schema
-            });
-
-            this.result = response;
-            this.status = 'complete';
-            await this.state.storage.put({ status: this.status, result: this.result, error: null });
-
-            return new Response(JSON.stringify({ status: this.status, result: this.result }), {
-                headers: { 'Content-Type': 'application/json' }
-            });
-        } catch (e: any) {
-            this.status = 'error';
-            this.error = `Comparison failed: ${e.message}`;
             await this.state.storage.put({ status: this.status, result: null, error: this.error });
             return new Response(JSON.stringify({ status: this.status, error: this.error }), {
                 headers: { 'Content-Type': 'application/json' }
@@ -191,17 +183,9 @@ export default {
     async fetch(request: Request, env: Env): Promise<Response> {
         const url = new URL(request.url);
 
-        // API endpoints for Durable Objects
+        // API endpoint for Durable Object
         if (url.pathname.startsWith("/api/analyze")) {
             // Get or create a Durable Object for this session
-            const sessionId = request.headers.get("X-Session-ID") || "default";
-            const id = env.ANALYSIS_OBJECT.idFromName(sessionId);
-            const stub = env.ANALYSIS_OBJECT.get(id);
-
-            // Fetch the response from the Durable Object
-            return stub.fetch(request);
-        }
-        if (url.pathname.startsWith("/api/compare")) {
             const sessionId = request.headers.get("X-Session-ID") || "default";
             const id = env.ANALYSIS_OBJECT.idFromName(sessionId);
             const stub = env.ANALYSIS_OBJECT.get(id);
