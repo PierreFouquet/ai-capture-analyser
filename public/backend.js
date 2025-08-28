@@ -9,11 +9,22 @@ export class Backend {
         return 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
     }
 
+    // Function to convert an ArrayBuffer to a Base64 string in chunks
+    arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    }
+
     async analyzePcap(file, llmModelKey) {
         // Read the file as an ArrayBuffer
         const arrayBuffer = await file.arrayBuffer();
         // Convert the ArrayBuffer to a Base64 string for transmission
-        const base64PcapData = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        const base64PcapData = this.arrayBufferToBase64(arrayBuffer);
 
         try {
             const response = await fetch('/api/analyze/process', {
@@ -44,10 +55,10 @@ export class Backend {
 
     async comparePcaps(file1, file2, llmModelKey) {
         const arrayBuffer1 = await file1.arrayBuffer();
-        const base64PcapData1 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer1)));
+        const base64PcapData1 = this.arrayBufferToBase64(arrayBuffer1);
 
         const arrayBuffer2 = await file2.arrayBuffer();
-        const base64PcapData2 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer2)));
+        const base64PcapData2 = this.arrayBufferToBase64(arrayBuffer2);
         
         try {
             const response = await fetch('/api/compare/process', {
