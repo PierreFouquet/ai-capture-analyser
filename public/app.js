@@ -1,6 +1,5 @@
 // Main application logic
-
-import { llm_models, llm_settings, llm_prompts } from './config.js';
+import { llm_models, llm_settings } from './config.js';
 import { PcapParser } from './pcapParser.js';
 import { ReportRenderer } from './reportRenderer.js';
 

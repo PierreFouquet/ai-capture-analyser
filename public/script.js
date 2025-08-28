@@ -1,3 +1,4 @@
+// Backend communication utilities
 import { llm_models, llm_settings, llm_prompts } from "./config.js";
 
 // Utility to handle form and report display

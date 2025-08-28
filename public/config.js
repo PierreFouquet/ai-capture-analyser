@@ -1,7 +1,6 @@
 // This file contains the configuration for the application.
 
-// Configuration for the application
-
+// llm_models: A list of available LLM models.
 export const llm_models = {
     "gemini-2.5-pro": {
         name: "gemini-2.5-pro",
@@ -45,17 +44,19 @@ export const llm_models = {
     }
 };
 
+// llm_settings: Default model to use.
 export const llm_settings = {
     default_llm_model_analysis: "gemini-2.5-pro",
     default_llm_model_comparison: "gemini-2.5-flash",
     async_mode_enabled: true
 };
 
+// VoIP port configuration
 export const voip_ports = {
-    sip_udp: [5060, 5061],
-    sip_tcp: [5060, 5061],
-    sip_tls: [5061, 5062],
-    rtp_udp: [10000, 20000]
+    sip_udp: [9997, 9998],
+    sip_tcp: [9997, 9998],
+    sip_tls: [9997, 9998],
+    rtp_udp: [10000, 60000]
 };
 
 // llm_prompts: Prompts for the LLM models.

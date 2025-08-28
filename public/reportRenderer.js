@@ -1,4 +1,5 @@
 // Report rendering utilities
+import { ChartRenderer } from './chartRenderer.js';
 
 export class ReportRenderer {
     constructor() {
