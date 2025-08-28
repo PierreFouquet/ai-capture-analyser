@@ -16,85 +16,29 @@
     <div class="bg-white p-6 md:p-8 rounded-xl shadow-lg w-full max-w-6xl">
         <h1 class="text-2xl md:text-3xl font-bold text-center text-gray-800 mb-4 md:mb-6">Network Packet Analyzer</h1>
         <p class="text-center text-gray-600 mb-6 md:mb-8 text-sm md:text-base">
-            Upload a PCAP file to analyze or compare network captures. The analysis is powered by LLM models to provide detailed, human-readable reports.
+            Upload a PCAP file to analyze or compare network traffic.
         </p>
-
-        <!-- Main Form Section -->
-        <div class="space-y-6 md:space-y-8">
-            <!-- Analysis Section -->
-            <div class="p-6 bg-gray-50 rounded-lg shadow-inner">
-                <h2 class="text-xl md:text-2xl font-semibold text-gray-800 mb-4">Analyze a Single PCAP</h2>
-                <div class="flex flex-col md:flex-row items-center gap-4">
-                    <label for="pcap-file-1" class="w-full md:w-auto text-center md:text-left flex-shrink-0 text-gray-600">
-                        Select PCAP File:
-                    </label>
-                    <input type="file" id="pcap-file-1" class="w-full text-sm text-gray-500
-                        file:mr-4 file:py-2 file:px-4
-                        file:rounded-full file:border-0
-                        file:text-sm file:font-semibold
-                        file:bg-blue-50 file:text-blue-700
-                        hover:file:bg-blue-100
-                    "/>
-                    <label for="model-select-1" class="w-full md:w-auto text-center md:text-left flex-shrink-0 text-gray-600">
-                        LLM Model:
-                    </label>
-                    <select id="model-select-1" class="w-full md:w-auto rounded-md border-gray-300 shadow-sm focus:border-blue-300 focus:ring focus:ring-blue-200 focus:ring-opacity-50 text-sm">
-                    </select>
-                </div>
-                <div class="flex justify-center mt-6">
-                    <button id="start-analysis-btn" class="w-full md:w-auto bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-blue-700 transition-colors shadow-md">
-                        Start Analysis
-                    </button>
-                </div>
-            </div>
-
-            <!-- Comparison Section -->
-            <div class="p-6 bg-gray-50 rounded-lg shadow-inner">
-                <h2 class="text-xl md:text-2xl font-semibold text-gray-800 mb-4">Compare Two PCAP Files</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                        <label for="pcap-file-2" class="block mb-2 text-gray-600">File 1:</label>
-                        <input type="file" id="pcap-file-2" class="w-full text-sm text-gray-500
-                            file:mr-4 file:py-2 file:px-4
-                            file:rounded-full file:border-0
-                            file:text-sm file:font-semibold
-                            file:bg-purple-50 file:text-purple-700
-                            hover:file:bg-purple-100
-                        "/>
-                    </div>
-                    <div>
-                        <label for="pcap-file-3" class="block mb-2 text-gray-600">File 2:</label>
-                        <input type="file" id="pcap-file-3" class="w-full text-sm text-gray-500
-                            file:mr-4 file:py-2 file:px-4
-                            file:rounded-full file:border-0
-                            file:text-sm file:font-semibold
-                            file:bg-purple-50 file:text-purple-700
-                            hover:file:bg-purple-100
-                        "/>
-                    </div>
-                </div>
-                <div class="flex flex-col md:flex-row items-center gap-4 mt-4">
-                    <label for="model-select-2" class="w-full md:w-auto text-center md:text-left flex-shrink-0 text-gray-600">
-                        LLM Model:
-                    </label>
-                    <select id="model-select-2" class="w-full md:w-auto rounded-md border-gray-300 shadow-sm focus:border-purple-300 focus:ring focus:ring-purple-200 focus:ring-opacity-50 text-sm">
-                    </select>
-                </div>
-                <div class="flex justify-center mt-6">
-                    <button id="start-comparison-btn" class="w-full md:w-auto bg-purple-600 text-white font-bold py-2 px-6 rounded-lg hover:bg-purple-700 transition-colors shadow-md">
-                        Start Comparison
-                    </button>
-                </div>
+        
+        <!-- Analysis Form -->
+        <div class="bg-gray-50 p-6 md:p-8 rounded-xl mb-6 shadow-inner">
+            <h2 class="text-xl md:text-2xl font-bold text-gray-800 mb-4">Analyze a Single File</h2>
+            <div class="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
+                <input type="file" id="pcap-file-1" class="w-full md:w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors cursor-pointer" accept=".pcap,.pcapng">
+                <select id="model-select-1" class="w-full md:w-auto p-2 rounded-md border border-gray-300 bg-white text-gray-700 cursor-pointer"></select>
+                <button id="start-analysis-btn" class="w-full md:w-auto bg-blue-600 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-700 transition-colors duration-300">Start Analysis</button>
             </div>
         </div>
-    </div>
 
-    <!-- Message Box -->
-    <div id="message-box" class="message-box hidden bg-green-500 text-white px-6 py-3 rounded-lg shadow-xl max-w-sm w-full transition-all">
-        <p id="message-text" class="text-sm font-semibold flex-grow">Message here.</p>
-        <button id="message-close" class="ml-4 text-white hover:text-gray-200 focus:outline-none">
-            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
-        </button>
+        <!-- Comparison Form -->
+        <div class="bg-gray-50 p-6 md:p-8 rounded-xl mb-6 shadow-inner">
+            <h2 class="text-xl md:text-2xl font-bold text-gray-800 mb-4">Compare Two Files</h2>
+            <div class="flex flex-col md:flex-row items-center space-y-4 md:space-y-0 md:space-x-4">
+                <input type="file" id="pcap-file-2" class="w-full md:w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors cursor-pointer" accept=".pcap,.pcapng">
+                <input type="file" id="pcap-file-3" class="w-full md:w-auto text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100 transition-colors cursor-pointer" accept=".pcap,.pcapng">
+                <select id="model-select-2" class="w-full md:w-auto p-2 rounded-md border border-gray-300 bg-white text-gray-700 cursor-pointer"></select>
+                <button id="start-comparison-btn" class="w-full md:w-auto bg-blue-600 text-white font-bold py-2 px-6 rounded-full hover:bg-blue-700 transition-colors duration-300">Start Comparison</button>
+            </div>
+        </div>
     </div>
 
     <!-- Report Section -->
@@ -113,16 +57,21 @@
                 <div id="analysis-progress" class="h-full bg-blue-500 rounded-full transition-all duration-300" style="width: 0%"></div>
             </div>
         </div>
-        <div id="report-container" class="space-y-6">
-            <p class="text-center text-gray-500">Your analysis report will appear here.</p>
+        <div id="report-container" class="space-y-8">
+            <!-- Reports will be rendered here -->
+            <p class="text-gray-500 text-center py-10">Select files and click a button above to generate a report.</p>
         </div>
     </div>
 
-    <script type="module" src="config.js"></script>
-    <script type="module" src="pcapParser.js"></script>
-    <script type="module" src="chartRenderer.js"></script>
-    <script type="module" src="reportRenderer.js"></script>
-    <script type="module" src="pdfExporter.js"></script>
+    <!-- Custom Message Box -->
+    <div id="message-box" class="message-box hidden flex items-center justify-between p-4 rounded-lg text-white shadow-lg z-50">
+        <span id="message-text" class="mr-4"></span>
+        <button id="message-close" class="text-white opacity-75 hover:opacity-100">
+            <svg class="w-4 h-4" fill="currentColor" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path></svg>
+        </button>
+    </div>
+
+    <!-- The main application script -->
     <script type="module" src="app.js"></script>
 </body>
 </html>

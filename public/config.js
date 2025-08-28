@@ -68,20 +68,14 @@ export const llm_settings = {
     // Note: async_mode_enabled is for the Python backend, not relevant for this JS/TS app
 };
 
-// llm_prompts: LLM prompts for analysis and comparison
+// llm_prompts: Prompt templates and JSON schemas for LLM interactions.
 export const llm_prompts = {
-    // Prompt for single PCAP analysis
-    analysis_pcap_explanation: `You are a network security analyst. Analyze the following packet capture data.
-    Provide a detailed explanation covering:
-    - Overall traffic summary and key protocols.
-    - Identification of any anomalies, errors, or suspicious activities.
-    - If SIP or RTP traffic is present, describe the call flow and identify potential issues.
-    - Important timestamps or packet numbers if relevant.
-    
-    Respond strictly in JSON format according to the schema provided.
-    
+    analysis_pcap_explanation_template: `
+    You are an expert SIP and RTP packet analyst. Your task is to analyze a raw PCAP file snippet and provide a detailed report.
+    The user will provide a snippet of raw PCAP data.
+    Your response must be a JSON object that adheres to the provided schema.
     ---
-    PCAP Data Snippet:
+    PCAP Snippet ({label}):
     {pcap_data_snippet}
     `,
     analysis_pcap_explanation_schema: {
@@ -89,43 +83,45 @@ export const llm_prompts = {
         properties: {
             summary: {
                 type: "string",
-                description: "Overall traffic summary and key protocols identified."
+                description: "Overall summary of the network traffic, including key protocols, services, and traffic patterns."
+            },
+            protocol_distribution: {
+                type: "object",
+                patternProperties: {
+                    ".*": { "type": "number" }
+                },
+                description: "A key-value pair of protocol names and their percentage distribution in the capture."
             },
             anomalies_and_errors: {
                 type: "array",
                 items: {
                     type: "string"
                 },
-                description: "List of anomalies or errors detected."
+                description: "List of detected anomalies or errors, such as unusual traffic, failed connections, or potential security threats."
             },
             sip_rtp_info: {
                 type: "string",
-                description: "Detailed information on SIP/RTP traffic if present, otherwise 'N/A'."
+                description: "Summary of any detected SIP/RTP information, otherwise 'N/A'."
             },
             important_timestamps_packets: {
                 type: "string",
-                description: "Key timestamps or packet numbers relevant to the analysis, otherwise 'N/A'."
+                description: "Key timestamps or packet numbers, otherwise 'N/A'."
             }
         },
-        required: ["summary", "anomalies_and_errors", "sip_rtp_info", "important_timestamps_packets"]
+        required: ["summary", "protocol_distribution", "anomalies_and_errors", "sip_rtp_info", "important_timestamps_packets"]
     },
 
-    // Prompt for PCAP comparison
-    comparison_pcap_explanation: `You are a network security analyst. Compare the following two packet capture data snippets.
-    Provide a detailed comparison covering:
-    - Overall summary of the comparison.
-    - Key differences between the two captures.
-    - Key similarities between the two captures.
-    - Analysis of any security implications or risks identified.
-
-    Respond strictly in JSON format according to the schema provided.
-
+    comparison_pcap_explanation_template: `
+    You are an expert SIP and RTP packet analyst. Your task is to compare two raw PCAP file snippets.
+    The user will provide two snippets of raw PCAP data, labeled {label1} and {label2}.
+    Your response must be a JSON object that adheres to the provided schema.
     ---
     PCAP 1 Snippet ({label1}):
     {pcap_data_snippet1}
     ---
     PCAP 2 Snippet ({label2}):
-    {pcap_data_snippet2}`,
+    {pcap_data_snippet2}`
+,
     comparison_pcap_explanation_schema: {
         type: "object",
         properties: {
