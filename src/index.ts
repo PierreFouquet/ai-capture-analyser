@@ -1,7 +1,10 @@
+import { llm_settings, llm_prompts } from './config';
+
 // The Durable Object that will handle the analysis state.
 export interface AnalysisObjectState {
     status: 'idle' | 'processing' | 'complete' | 'error';
     result: any;
+    error?: string;
 }
 
 export class AnalysisObject {
@@ -9,32 +12,44 @@ export class AnalysisObject {
     private env: Env;
     private status: 'idle' | 'processing' | 'complete' | 'error';
     private result: any;
-    private llmService: LLMService;
+    private error: string | null = null;
 
     constructor(state: DurableObjectState, env: Env) {
         this.state = state;
         this.env = env;
         this.status = 'idle';
         this.result = {};
-        this.llmService = new LLMService(env);
+
+        // Load status from storage
+        this.state.storage.get<AnalysisObjectState>('analysisState')
+            .then(s => {
+                if (s) {
+                    this.status = s.status;
+                    this.result = s.result;
+                    this.error = s.error || null;
+                }
+            });
     }
 
     // Handle requests to the Durable Object
     async fetch(request: Request): Promise<Response> {
-        try {
-            const url = new URL(request.url);
-            const path = url.pathname;
+        const url = new URL(request.url);
+        const path = url.pathname;
 
+        try {
             if (path.endsWith("/status")) {
                 return this.handleStatusRequest();
-            } else if (path.endsWith("/analyze")) {
-                return await this.handleAnalyzeRequest(request);
-            } else if (path.endsWith("/compare")) {
+            } else if (path.endsWith("/process")) {
+                return await this.handleProcessRequest(request);
+            } else if (path.endsWith("/compare-process")) {
                 return await this.handleCompareRequest(request);
             } else {
                 return new Response("Not Found", { status: 404 });
             }
         } catch (e: any) {
+            this.status = 'error';
+            this.error = e.message;
+            await this.state.storage.put({ status: this.status, error: this.error, result: null });
             return new Response(`An error occurred: ${e.message}`, { status: 500 });
         }
     }
@@ -43,158 +58,150 @@ export class AnalysisObject {
         return new Response(JSON.stringify({
             status: this.status,
             result: this.result,
+            error: this.error,
         }), {
-            headers: { 'Content-Type': 'application/json' },
+            headers: { 'Content-Type': 'application/json' }
         });
     }
 
-    private async handleAnalyzeRequest(request: Request): Promise<Response> {
-        if (this.status === 'processing') {
-            return new Response("Analysis is already in progress.", { status: 409 });
-        }
+    private async handleProcessRequest(request: Request): Promise<Response> {
+        this.status = 'processing';
+        this.result = null;
+        this.error = null;
+        await this.state.storage.put({ status: this.status, result: null, error: null });
 
         try {
-            const body = await request.json();
-            const { pcap_data, file_name, llm_model_key } = body;
-            
-            if (!pcap_data || !file_name || !llm_model_key) {
-                this.status = 'error';
-                this.result = { error: 'Missing required parameters.' };
-                await this.state.storage.put('status', 'error');
-                return new Response(JSON.stringify(this.result), { status: 400 });
-            }
+            const requestBody = await request.json();
+            const { pcap_data, file_name, llm_model_key } = requestBody;
 
-            this.status = 'processing';
-            this.result = { file_name };
-            await this.state.storage.put('status', 'processing');
+            // Simulate parsing the PCAP data
+            const decodedData = this.b64ToArrayBuffer(pcap_data);
+            const pcapSnippet = this.extractPcapSnippet(decodedData, 2048);
 
-            // Offload the heavy lifting to a separate function
-            this.processAnalysis(pcap_data, llm_model_key, file_name);
+            // Use Cloudflare Workers AI to generate the analysis
+            const response = await this.env.AI.run(llm_model_key, {
+                prompt: this.formatPrompt('analysis', {
+                    pcap_data_snippet: pcapSnippet,
+                    file_name: file_name,
+                }),
+                ...llm_settings,
+                prompt_schema: llm_prompts.analysis_pcap_schema
+            });
 
-            return new Response(JSON.stringify({ status: 'started' }), { status: 202 });
+            this.result = response;
+            this.status = 'complete';
+            await this.state.storage.put({ status: this.status, result: this.result, error: null });
+
+            return new Response(JSON.stringify({ status: this.status, result: this.result }), {
+                headers: { 'Content-Type': 'application/json' }
+            });
 
         } catch (e: any) {
             this.status = 'error';
-            this.result = { error: e.message };
-            await this.state.storage.put('status', 'error');
-            return new Response(JSON.stringify(this.result), { status: 500 });
+            this.error = `Analysis failed: ${e.message}`;
+            await this.state.storage.put({ status: this.status, result: null, error: this.error });
+            return new Response(JSON.stringify({ status: this.status, error: this.error }), {
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
     }
 
     private async handleCompareRequest(request: Request): Promise<Response> {
-        if (this.status === 'processing') {
-            return new Response("Comparison is already in progress.", { status: 409 });
-        }
+        this.status = 'processing';
+        this.result = null;
+        this.error = null;
+        await this.state.storage.put({ status: this.status, result: null, error: null });
 
         try {
-            const body = await request.json();
-            const { pcap_data1, pcap_data2, file_name1, file_name2, llm_model_key } = body;
-            
-            if (!pcap_data1 || !pcap_data2 || !file_name1 || !file_name2 || !llm_model_key) {
-                this.status = 'error';
-                this.result = { error: 'Missing required parameters.' };
-                await this.state.storage.put('status', 'error');
-                return new Response(JSON.stringify(this.result), { status: 400 });
-            }
+            const requestBody = await request.json();
+            const { pcap_data1, pcap_data2, file_name1, file_name2, llm_model_key } = requestBody;
 
-            this.status = 'processing';
-            this.result = { file_name1, file_name2 };
-            await this.state.storage.put('status', 'processing');
+            // Simulate parsing and extracting snippets
+            const decodedData1 = this.b64ToArrayBuffer(pcap_data1);
+            const pcapSnippet1 = this.extractPcapSnippet(decodedData1, 2048);
+            const decodedData2 = this.b64ToArrayBuffer(pcap_data2);
+            const pcapSnippet2 = this.extractPcapSnippet(decodedData2, 2048);
 
-            this.processComparison(pcap_data1, pcap_data2, llm_model_key, file_name1, file_name2);
+            // Use Cloudflare Workers AI to generate the comparison
+            const response = await this.env.AI.run(llm_model_key, {
+                prompt: this.formatPrompt('comparison', {
+                    pcap_data_snippet1: pcapSnippet1,
+                    pcap_data_snippet2: pcapSnippet2,
+                    label1: file_name1,
+                    label2: file_name2,
+                }),
+                ...llm_settings,
+                prompt_schema: llm_prompts.comparison_pcap_explanation_schema
+            });
 
-            return new Response(JSON.stringify({ status: 'started' }), { status: 202 });
+            this.result = response;
+            this.status = 'complete';
+            await this.state.storage.put({ status: this.status, result: this.result, error: null });
 
+            return new Response(JSON.stringify({ status: this.status, result: this.result }), {
+                headers: { 'Content-Type': 'application/json' }
+            });
         } catch (e: any) {
             this.status = 'error';
-            this.result = { error: e.message };
-            await this.state.storage.put('status', 'error');
-            return new Response(JSON.stringify(this.result), { status: 500 });
+            this.error = `Comparison failed: ${e.message}`;
+            await this.state.storage.put({ status: this.status, result: null, error: this.error });
+            return new Response(JSON.stringify({ status: this.status, error: this.error }), {
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
     }
 
-    private async processAnalysis(pcap_data: string, llm_model_key: string, file_name: string) {
-        try {
-            const prompt = this.env.config.llm_prompts.analysis_pcap_explanation.replace(
-                '{pcap_data_snippet}', `[PCAP data from ${file_name} sent as base64]`
-            );
-
-            // This is a placeholder for the actual LLM call using the Workers AI binding
-            const response = await this.llmService.callLLM(llm_model_key, prompt, this.env.config.llm_prompts.analysis_pcap_explanation_schema);
-
-            this.result.report = response;
-            this.status = 'complete';
-            await this.state.storage.put('status', 'complete');
-            await this.state.storage.put('result', this.result);
-
-        } catch (e: any) {
-            this.status = 'error';
-            this.result.error = `LLM analysis failed: ${e.message}`;
-            await this.state.storage.put('status', 'error');
+    // Helper function to decode Base64 string to ArrayBuffer
+    private b64ToArrayBuffer(base64: string): ArrayBuffer {
+        const binaryString = atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
         }
+        return bytes.buffer;
     }
 
-    private async processComparison(pcap_data1: string, pcap_data2: string, llm_model_key: string, file_name1: string, file_name2: string) {
-        try {
-            const prompt = this.env.config.llm_prompts.comparison_pcap_explanation
-                .replace('{label1}', file_name1)
-                .replace('{pcap_data_snippet1}', `[PCAP data from ${file_name1} sent as base64]`)
-                .replace('{label2}', file_name2)
-                .replace('{pcap_data_snippet2}', `[PCAP data from ${file_name2} sent as base64]`);
+    // Helper to extract a small snippet from the data
+    private extractPcapSnippet(buffer: ArrayBuffer, size: number): string {
+        const bytes = new Uint8Array(buffer);
+        const snippet = bytes.slice(0, size);
+        return Array.from(snippet).map(byte => byte.toString(16).padStart(2, '0')).join('');
+    }
 
-            const response = await this.llmService.callLLM(llm_model_key, prompt, this.env.config.llm_prompts.comparison_pcap_explanation_schema);
-
-            this.result.report = response;
-            this.status = 'complete';
-            await this.state.storage.put('status', 'complete');
-            await this.state.storage.put('result', this.result);
-
-        } catch (e: any) {
-            this.status = 'error';
-            this.result.error = `LLM comparison failed: ${e.message}`;
-            await this.state.storage.put('status', 'error');
+    // Helper to format the prompt based on the type
+    private formatPrompt(type: 'analysis' | 'comparison', data: any): string {
+        if (type === 'analysis') {
+            return llm_prompts.analysis_pcap_explanation_prompt
+                .replace('{pcap_data_snippet}', data.pcap_data_snippet)
+                .replace('{file_name}', data.file_name);
+        } else if (type === 'comparison') {
+            return llm_prompts.comparison_pcap_explanation_prompt
+                .replace('{pcap_data_snippet1}', data.pcap_data_snippet1)
+                .replace('{pcap_data_snippet2}', data.pcap_data_snippet2)
+                .replace('{label1}', data.label1)
+                .replace('{label2}', data.label2);
         }
+        return '';
     }
 }
-
-// LLM service class to abstract the Workers AI binding
-class LLMService {
-    private env: Env;
-
-    constructor(env: Env) {
-        this.env = env;
-    }
-
-    async callLLM(modelKey: string, prompt: string, schema: any): Promise<any> {
-        const model = this.env.config.llm_models[modelKey];
-        if (!model) {
-            throw new Error(`Model with key ${modelKey} not found in config.`);
-        }
-
-        const inputs = { prompt };
-        
-        const response = await this.env.AI.run(model.name, inputs, {
-            stream: false,
-            structured: {
-                type: "JSON",
-                schema: schema
-            }
-        });
-
-        // The response from a structured AI call is the parsed JSON
-        return response;
-    }
-}
-
 
 // The main Worker script.
 export default {
     async fetch(request: Request, env: Env): Promise<Response> {
         const url = new URL(request.url);
 
-        // API endpoints
-        if (url.pathname.startsWith("/api/")) {
+        // API endpoints for Durable Objects
+        if (url.pathname.startsWith("/api/analyze")) {
             // Get or create a Durable Object for this session
+            const sessionId = request.headers.get("X-Session-ID") || "default";
+            const id = env.ANALYSIS_OBJECT.idFromName(sessionId);
+            const stub = env.ANALYSIS_OBJECT.get(id);
+
+            // Fetch the response from the Durable Object
+            return stub.fetch(request);
+        }
+        if (url.pathname.startsWith("/api/compare")) {
             const sessionId = request.headers.get("X-Session-ID") || "default";
             const id = env.ANALYSIS_OBJECT.idFromName(sessionId);
             const stub = env.ANALYSIS_OBJECT.get(id);
@@ -215,7 +222,3 @@ interface Env {
     AI: any; // Cloudflare AI binding
     config: any; // Configuration object
 }
-
-// Durable Object declaration for Workers AI
-export { AnalysisObject as PCAPAnalysisDurableObject };
-
