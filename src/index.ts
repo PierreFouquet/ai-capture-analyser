@@ -1,4 +1,4 @@
-import { llm_settings, llm_prompts } from './config';
+import { llm_settings, llm_prompts } from '../public/config';
 
 // The Durable Object that will handle the analysis state.
 export interface AnalysisObjectState {
