@@ -2,45 +2,46 @@
 
 // llm_models: A list of available LLM models.
 export const llm_models = {
-    "gemini-2.5-pro": {
-        name: "gemini-2.5-pro",
-        provider: "Google"
-    },
-    "gemini-2.5-flash": {
-        name: "gemini-2.5-flash",
-        provider: "Google"
-    },
-    "gemini-2.5-flash-lite-preview": {
-        name: "gemini-2.5-flash-lite-preview-06-17",
-        provider: "Google"
-    },
-    "o4-mini": {
-        name: "o4-mini",
+    // Cloudflare Workers AI Models
+    "@cf/openai/gpt-oss-120b": {
+        name: "GPT OSS 120b",
         provider: "OpenAI"
     },
-    "gpt-4.1": {
-        name: "gpt-4.1",
+    "@cf/openai/gpt-oss-20b": {
+        name: "GPT OSS 20b",
         provider: "OpenAI"
     },
-    "gpt-4o": {
-        name: "gpt-4o",
-        provider: "OpenAI"
+    "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {
+        name: "DeepSeek R1 Distill Qwen 32B",
+        provider: "DeepSeek"
     },
-    "deepseek-reasoner": {
-        name: "deepseek-reasoner",
-        provider: "Deepseek"
+    "@cf/deepseek-ai/deepseek-math-7b-instruct": {
+        name: "DeepSeek Math Instruct 7B",
+        provider: "DeepSeek"
     },
-    "deepseek-chat": {
-        name: "deepseek-chat",
-        provider: "Deepseek"
+    "@cf/microsoft/phi-2": {
+        name: "Microsoft Phi-2",
+        provider: "Microsoft"
     },
-    "claude-opus-4-0": {
-        name: "claude-opus-4-0",
-        provider: "Anthropic"
+    "@hf/google/gemma-7b-it": {
+        name: "Google Gemma 7b",
+        provider: "Google"
     },
-    "claude-sonnet-4-0": {
-        name: "claude-sonnet-4-0",
-        provider: "Anthropic"
+    "@cf/google/gemma-3-12b-it": {
+        name: "Google Gemma 3 12b",
+        provider: "Google"
+    },
+    "@cf/meta/llama-4-scout-17b-16e-instruct": {
+        name: "Meta Llama 4 Scout",
+        provider: "Meta"
+    },
+    "@cf/meta/llama-3.3-70b-instruct-fp8-fast": {
+        name: "Meta Llama 3.3 70B",
+        provider: "Meta"
+    },
+    "@cf/mistralai/mistral-small-3.1-24b-instruct": {
+        name: "Mistral Small 3.1",
+        provider: "MistralAI"
     }
 };
 
@@ -61,7 +62,7 @@ export const voip_ports = {
 
 // llm_prompts: Prompts for the LLM models.
 export const llm_prompts = {
-    analysis_pcap_explanation: `You are a network security analyst. Analyze the following packet capture data.
+    analysis_pcap_explanation: `You are a SIP and RTP packet analyst. Analyze the following packet capture data.
     Provide a detailed explanation covering:
     - Overall traffic summary and key protocols.
     - Identification of any anomalies, errors, or suspicious activities.
@@ -97,7 +98,7 @@ export const llm_prompts = {
         },
         required: ["summary", "anomalies_and_errors", "sip_rtp_info", "important_timestamps_packets"]
     },
-    comparison_pcap_explanation: `You are a network security analyst. Compare the following two packet capture data snippets.
+    comparison_pcap_explanation: `You are a SIP and RTP packet analyst. Compare the following two packet capture data snippets.
     Provide a detailed explanation covering:
     - An overall summary of the comparison.
     - A list of key differences between the two captures.
