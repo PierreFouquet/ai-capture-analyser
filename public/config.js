@@ -160,4 +160,4 @@ export const llm_prompts = {
 };
 
 // Make the configuration available globally
-window.pcapAnalyzerConfig = { llm_models, llm_settings, llm_prompts };
+pcapAnalyzerConfig = { llm_models, llm_settings, llm_prompts };
