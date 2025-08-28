@@ -109,6 +109,11 @@ export class PCAPAnalyzerApp {
                 }
             });
 
+            // Ensure pcapData is valid before proceeding
+            if (!pcapData) {
+                throw new Error('Failed to parse PCAP file data.');
+            }
+
             // Mocking the LLM API call response structure from the backend
             const analysisResult = {
                 summary: "This report analyzes a sample PCAP file. It contains a mix of network traffic, primarily focusing on TCP and HTTP protocols. There are several DNS queries, some of which appear to be for external services. No major anomalies or security threats were detected in this small sample.",
@@ -117,8 +122,8 @@ export class PCAPAnalyzerApp {
                     "A few out-of-order TCP packets."
                 ],
                 sip_rtp_info: "No SIP or RTP traffic was identified in this capture.",
-                important_timestamps_packets: "Packet 10 and 15 show the start of a TCP handshake.",
-                protocol_distribution: pcapData.protocolDistribution, // Use data from the parser
+                important_timestamps_packets: "N/A",
+                protocol_distribution: pcapData.protocolDistribution,
                 packetCount: pcapData.packetCount,
                 duration: pcapData.duration,
                 timeline: pcapData.timeline

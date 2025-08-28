@@ -13,15 +13,22 @@ export class ChartRenderer {
     }
 
     createProtocolChart(protocolData, canvasId) {
+        // Add a defensive check for protocolData
+        if (!protocolData) {
+            console.error(`No protocol data provided for canvas with id: ${canvasId}`);
+            // Return early to prevent the TypeError
+            return;
+        }
+        
         const ctx = document.getElementById(canvasId);
         if (!ctx) {
             console.error(`Canvas element with id ${canvasId} not found`);
             return null;
         }
-
+        
         const labels = Object.keys(protocolData);
         const data = Object.values(protocolData);
-
+        
         return new Chart(ctx.getContext('2d'), {
             type: 'doughnut',
             data: {
@@ -63,9 +70,9 @@ export class ChartRenderer {
             console.error(`Canvas element with id ${canvasId} not found`);
             return null;
         }
-
+        
         const protocols = [...new Set([...Object.keys(data1 || {}), ...Object.keys(data2 || {})])];
-
+        
         return new Chart(ctx.getContext('2d'), {
             type: 'bar',
             data: {
@@ -105,10 +112,10 @@ export class ChartRenderer {
             console.error(`Canvas element with id ${canvasId} not found`);
             return null;
         }
-
+        
         const labels = Object.keys(timelineData);
         const data = Object.values(timelineData);
-
+        
         return new Chart(ctx.getContext('2d'), {
             type: 'line',
             data: {
