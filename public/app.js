@@ -3,12 +3,14 @@ import { llm_models, llm_settings } from './config.js';
 import { PcapParser } from './pcapParser.js';
 import { ReportRenderer } from './reportRenderer.js';
 import { PDFExporter } from './pdfExporter.js';
+import { Backend } from './backend.js'; // Import the new Backend class
 
 export class PCAPAnalyzerApp {
     constructor() {
         this.pcapParser = new PcapParser();
         this.reportRenderer = new ReportRenderer();
         this.pdfExporter = new PDFExporter();
+        this.backend = new Backend(); // Initialize the Backend class
         this.currentAnalysisData = null;
         
         this.initializeDOMElements();
@@ -86,40 +88,17 @@ export class PCAPAnalyzerApp {
         this.loadingIndicator.style.display = 'flex';
         this.reportContainer.innerHTML = '';
         this.exportButtons.classList.add('hidden');
-        this.hideMessage();
+        this.showMessage('Analyzing PCAP file with LLM...', false);
 
         try {
-            const pcapData = await this.pcapParser.parse(file, (progress) => {
-                const progressBar = document.getElementById('analysis-progress');
-                if (progressBar) {
-                    progressBar.style.width = `${progress}%`;
-                }
-            });
-
-            if (!pcapData) {
-                throw new Error('Failed to parse PCAP file data.');
-            }
-
-            const analysisResult = {
-                summary: "This report analyzes a sample PCAP file. It contains a mix of network traffic, primarily focusing on TCP and HTTP protocols. There are several DNS queries, some of which appear to be for external services. No major anomalies or security threats were detected in this small sample.",
-                anomalies_and_errors: [
-                    "Repeated DNS queries for a single domain.",
-                    "A few out-of-order TCP packets."
-                ],
-                sip_rtp_info: "No SIP or RTP traffic was identified in this capture.",
-                important_timestamps_packets: "N/A",
-                protocol_distribution: pcapData.protocolDistribution,
-                packetCount: pcapData.packetCount,
-                duration: pcapData.duration,
-                timeline: pcapData.timeline
-            };
+            const analysisResult = await this.backend.analyzePcap(file, llmModelKey);
 
             this.currentAnalysisData = {
                 type: 'analysis',
                 data: analysisResult,
                 fileName: file.name
             };
-
+            
             const renderedReport = this.reportRenderer.renderAnalysisReport(analysisResult, file.name);
             this.reportContainer.innerHTML = renderedReport.html;
             renderedReport.postRender();
@@ -149,51 +128,10 @@ export class PCAPAnalyzerApp {
         this.loadingIndicator.style.display = 'flex';
         this.reportContainer.innerHTML = '';
         this.exportButtons.classList.add('hidden');
-        this.hideMessage();
+        this.showMessage('Comparing PCAP files with LLM...', false);
 
         try {
-            const pcapData1 = await this.pcapParser.parse(file1, (progress) => {
-                const progressBar = document.getElementById('analysis-progress');
-                if (progressBar) progressBar.style.width = `${progress / 2}%`;
-            });
-            const pcapData2 = await this.pcapParser.parse(file2, (progress) => {
-                const progressBar = document.getElementById('analysis-progress');
-                if (progressBar) progressBar.style.width = `${50 + progress / 2}%`;
-            });
-
-            let comparisonResult;
-            if (file1.name === file2.name) {
-                comparisonResult = {
-                    overall_comparison_summary: "These two captures appear to be identical. No significant differences in protocol distribution, packet count, or traffic patterns were detected.",
-                    key_differences: [],
-                    key_similarities: [
-                        "Identical protocol distributions.",
-                        "Identical packet counts and traffic volume.",
-                        "Identical timestamp and flow information."
-                    ],
-                    security_implications: "No security implications found as the files are identical.",
-                    important_timestamps_packets: "N/A",
-                    file1: pcapData1,
-                    file2: pcapData2
-                };
-            } else {
-                comparisonResult = {
-                    overall_comparison_summary: "File 1 is a typical web browsing capture with a mix of HTTP and HTTPS traffic, while File 2 appears to contain mostly voice-over-IP (VoIP) traffic, with a high concentration of SIP and RTP packets. This suggests File 1 is from a regular internet user and File 2 is from a communication system.",
-                    key_differences: [
-                        "Protocol distribution: File 1 is dominated by HTTP/HTTPS, while File 2 is dominated by SIP/RTP.",
-                        "File 2 has a higher volume of UDP traffic due to RTP, whereas File 1 is primarily TCP.",
-                        "The average packet size in File 2 is smaller due to the nature of VoIP payloads."
-                    ],
-                    key_similarities: [
-                        "Both captures contain some background DNS and ARP traffic.",
-                        "Both show evidence of standard TCP handshakes at the beginning of sessions."
-                    ],
-                    security_implications: "The VoIP traffic in File 2, if unencrypted (G.711u), is vulnerable to eavesdropping. File 1 contains standard web traffic, with the usual security considerations for unencrypted HTTP connections.",
-                    important_timestamps_packets: "In File 2, packet 42 and 43 mark the start of a SIP INVITE transaction.",
-                    file1: pcapData1,
-                    file2: pcapData2
-                };
-            }
+            const comparisonResult = await this.backend.comparePcaps(file1, file2, llmModelKey);
 
             this.currentAnalysisData = {
                 type: 'comparison',
@@ -201,7 +139,7 @@ export class PCAPAnalyzerApp {
                 file1Name: file1.name,
                 file2Name: file2.name
             };
-
+            
             const renderedReport = this.reportRenderer.renderComparisonReport(comparisonResult, file1.name, file2.name);
             this.reportContainer.innerHTML = renderedReport.html;
             renderedReport.postRender();
