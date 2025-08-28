@@ -23,7 +23,7 @@ export const llm_models = {
         name: "Microsoft Phi-2",
         provider: "Cloudflare"
     },
-    "@hf/google/gemma-7b-it": {
+    "@cf/google/gemma-7b-it": {
         name: "Google Gemma 7b",
         provider: "Cloudflare"
     },
