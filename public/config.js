@@ -5,50 +5,50 @@ export const llm_models = {
     // Cloudflare Workers AI Models
     "@cf/openai/gpt-oss-120b": {
         name: "GPT OSS 120b",
-        provider: "OpenAI"
+        provider: "Cloudflare"
     },
     "@cf/openai/gpt-oss-20b": {
         name: "GPT OSS 20b",
-        provider: "OpenAI"
+        provider: "Cloudflare"
     },
     "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {
         name: "DeepSeek R1 Distill Qwen 32B",
-        provider: "DeepSeek"
+        provider: "Cloudflare"
     },
     "@cf/deepseek-ai/deepseek-math-7b-instruct": {
         name: "DeepSeek Math Instruct 7B",
-        provider: "DeepSeek"
+        provider: "Cloudflare"
     },
     "@cf/microsoft/phi-2": {
         name: "Microsoft Phi-2",
-        provider: "Microsoft"
+        provider: "Cloudflare"
     },
     "@hf/google/gemma-7b-it": {
         name: "Google Gemma 7b",
-        provider: "Google"
+        provider: "Cloudflare"
     },
     "@cf/google/gemma-3-12b-it": {
         name: "Google Gemma 3 12b",
-        provider: "Google"
+        provider: "Cloudflare"
     },
     "@cf/meta/llama-4-scout-17b-16e-instruct": {
         name: "Meta Llama 4 Scout",
-        provider: "Meta"
+        provider: "Cloudflare"
     },
     "@cf/meta/llama-3.3-70b-instruct-fp8-fast": {
         name: "Meta Llama 3.3 70B",
-        provider: "Meta"
+        provider: "Cloudflare"
     },
     "@cf/mistralai/mistral-small-3.1-24b-instruct": {
         name: "Mistral Small 3.1",
-        provider: "MistralAI"
+        provider: "Cloudflare"
     }
 };
 
 // llm_settings: Default model to use.
 export const llm_settings = {
-    default_llm_model_analysis: "gemini-2.5-pro",
-    default_llm_model_comparison: "gemini-2.5-flash",
+    default_llm_model_analysis: "DeepSeek R1 Distill Qwen 32B",
+    default_llm_model_comparison: "DeepSeek R1 Distill Qwen 32B",
     async_mode_enabled: true
 };
 

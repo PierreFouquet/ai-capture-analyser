@@ -64,6 +64,8 @@ export class AnalysisObject {
                 throw new Error("Missing required parameters: pcap_data, file_name, or llm_model_key.");
             }
 
+            // In a real implementation, you would parse the PCAP data here
+            // For this example, we'll use placeholder data
             const pcapDataSnippets = ["Placeholder packet data for demonstration"];
             
             const llmResponse = await this.callLLM(
@@ -121,7 +123,40 @@ export class AnalysisObject {
 
         console.log(`Calling LLM provider: ${provider} with model: ${modelName}`);
 
-        if (provider === "Google") {
+        // Handle different providers
+        if (provider === "Cloudflare") {
+            // Use Cloudflare AI binding
+            const ai = this.env.AI;
+            const inputs = {
+                prompt: prompt,
+                max_tokens: config.llm_settings.max_tokens || 4096,
+                temperature: config.llm_settings.temperature || 0.1
+            };
+            
+            try {
+                const response = await ai.run(model_key, inputs);
+                // The response from Cloudflare AI might be a text string, so we need to parse it as JSON
+                if (typeof response === 'string') {
+                    try {
+                        // Try to parse as JSON
+                        return response;
+                    } catch (e) {
+                        // If it's not JSON, wrap it in a proper JSON structure
+                        return JSON.stringify({
+                            summary: response,
+                            anomalies_and_errors: [],
+                            sip_rtp_info: "N/A",
+                            important_timestamps_packets: "N/A"
+                        });
+                    }
+                } else {
+                    return JSON.stringify(response);
+                }
+            } catch (e: any) {
+                console.error("Error calling Cloudflare AI:", e);
+                throw new Error(`Failed to call Cloudflare AI: ${e.message}`);
+            }
+        } else if (provider === "Google") {
             // Note: In the actual worker, you would use the AI binding like this:
             // const ai = this.env.AI;
             // const llm_response = await ai.run(modelName, { prompt, schema });
@@ -131,6 +166,33 @@ export class AnalysisObject {
                 "anomalies_and_errors": ["Mock anomaly 1", "Mock error 2"],
                 "sip_rtp_info": "Mock SIP/RTP info.",
                 "important_timestamps_packets": "Mock important packets."
+            });
+        } else if (provider === "OpenAI") {
+            // Implement OpenAI call
+            // Mock response for now
+            return JSON.stringify({
+                "summary": "This is a mock summary from an OpenAI model.",
+                "anomalies_and_errors": ["OpenAI mock anomaly"],
+                "sip_rtp_info": "OpenAI mock SIP/RTP info.",
+                "important_timestamps_packets": "OpenAI mock important packets."
+            });
+        } else if (provider === "Anthropic") {
+            // Implement Anthropic call
+            // Mock response for now
+            return JSON.stringify({
+                "summary": "This is a mock summary from an Anthropic model.",
+                "anomalies_and_errors": ["Anthropic mock anomaly"],
+                "sip_rtp_info": "Anthropic mock SIP/RTP info.",
+                "important_timestamps_packets": "Anthropic mock important packets."
+            });
+        } else if (provider === "Deepseek") {
+            // Implement Deepseek call
+            // Mock response for now
+            return JSON.stringify({
+                "summary": "This is a mock summary from a Deepseek model.",
+                "anomalies_and_errors": ["Deepseek mock anomaly"],
+                "sip_rtp_info": "Deepseek mock SIP/RTP info.",
+                "important_timestamps_packets": "Deepseek mock important packets."
             });
         }
 
@@ -189,3 +251,11 @@ export default {
         return env.ASSETS.fetch(request);
     }
 };
+
+// Environment interface
+interface Env {
+    ANALYSIS_OBJECT: DurableObjectNamespace;
+    ASSETS: Fetcher;
+    AI: any; // Cloudflare AI binding
+    config: any; // Configuration object
+}

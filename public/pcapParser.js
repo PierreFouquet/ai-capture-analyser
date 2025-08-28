@@ -94,7 +94,7 @@ export class PcapParser {
         return {
             sipCalls: Math.floor(Math.random() * 10),
             rtpStreams: Math.floor(Math.random() * 15),
-            sipMethods: ['INVITE', 'ACK', 'BYE', 'CANCEL'].slice(0, Math.floor(Math.random() * 4) + 1),
+            sipMethods: ['INVITE', 'ACK', 'BYE', 'CANCEL', 'OPTIONS', 'REGISTER', 'PRACK', 'SUBSCRIBE', 'NOTIFY', 'PUBLISH', 'INFO', 'REFER', 'MESSAGE', 'UPDATE'].slice(0, Math.floor(Math.random() * 4) + 1),
             codecs: ['G.711a', 'G.711u', 'iLBC', 'G.722'].slice(0, Math.floor(Math.random() * 3) + 1)
         };
     }
