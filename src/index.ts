@@ -72,57 +72,32 @@ export class AnalysisObject {
             const requestBody = await request.json();
             const { type, llm_model_key } = requestBody;
 
+            let promptToUse;
             if (type === 'analysis') {
                 const { pcap_data, file_name } = requestBody;
-                // Simulate parsing the PCAP data
                 const decodedData = this.b64ToArrayBuffer(pcap_data);
                 const pcapSnippet = this.extractPcapSnippet(decodedData, 2048);
 
-                // Use Cloudflare Workers AI to generate the analysis
-                const response = await this.env.AI.run(llm_model_key, {
-                    prompt: this.formatPrompt('analysis', {
-                        pcap_data_snippet: pcapSnippet,
-                        file_name: file_name,
-                    }),
-                    ...llm_settings,
-                    prompt_schema: llm_prompts.analysis_pcap_schema
-                });
-
-                this.result = response;
-                this.status = 'complete';
-                await this.state.storage.put({ status: this.status, result: this.result, error: null });
-
-                return new Response(JSON.stringify({ status: this.status, result: this.result }), {
-                    headers: { 'Content-Type': 'application/json' }
+                // Format the prompt with the JSON schema embedded
+                promptToUse = this.formatPrompt('analysis', {
+                    pcap_data_snippet: pcapSnippet,
+                    file_name: file_name,
                 });
 
             } else if (type === 'comparison') {
                 const { pcap_data1, pcap_data2, file_name1, file_name2 } = requestBody;
                 
-                // Simulate parsing and extracting snippets
                 const decodedData1 = this.b64ToArrayBuffer(pcap_data1);
                 const pcapSnippet1 = this.extractPcapSnippet(decodedData1, 2048);
                 const decodedData2 = this.b64ToArrayBuffer(pcap_data2);
                 const pcapSnippet2 = this.extractPcapSnippet(decodedData2, 2048);
     
-                // Use Cloudflare Workers AI to generate the comparison
-                const response = await this.env.AI.run(llm_model_key, {
-                    prompt: this.formatPrompt('comparison', {
-                        pcap_data_snippet1: pcapSnippet1,
-                        pcap_data_snippet2: pcapSnippet2,
-                        label1: file_name1,
-                        label2: file_name2,
-                    }),
-                    ...llm_settings,
-                    prompt_schema: llm_prompts.comparison_pcap_explanation_schema
-                });
-
-                this.result = response;
-                this.status = 'complete';
-                await this.state.storage.put({ status: this.status, result: this.result, error: null });
-
-                return new Response(JSON.stringify({ status: this.status, result: this.result }), {
-                    headers: { 'Content-Type': 'application/json' }
+                // Format the prompt with the JSON schema embedded
+                promptToUse = this.formatPrompt('comparison', {
+                    pcap_data_snippet1: pcapSnippet1,
+                    pcap_data_snippet2: pcapSnippet2,
+                    label1: file_name1,
+                    label2: file_name2,
                 });
             } else {
                 this.status = 'error';
@@ -132,6 +107,20 @@ export class AnalysisObject {
                     headers: { 'Content-Type': 'application/json' }
                 });
             }
+            
+            // Call the AI model without a separate prompt_schema parameter
+            const response = await this.env.AI.run(llm_model_key, {
+                prompt: promptToUse,
+                ...llm_settings,
+            });
+
+            this.result = response;
+            this.status = 'complete';
+            await this.state.storage.put({ status: this.status, result: this.result, error: null });
+
+            return new Response(JSON.stringify({ status: this.status, result: this.result }), {
+                headers: { 'Content-Type': 'application/json' }
+            });
 
         } catch (e: any) {
             this.status = 'error';
@@ -161,18 +150,20 @@ export class AnalysisObject {
         return Array.from(snippet).map(byte => byte.toString(16).padStart(2, '0')).join('');
     }
 
-    // Helper to format the prompt based on the type
+    // Helper to format the prompt based on the type, with JSON schema instructions
     private formatPrompt(type: 'analysis' | 'comparison', data: any): string {
         if (type === 'analysis') {
-            return llm_prompts.analysis_pcap_explanation_prompt
+            const schema = JSON.stringify(llm_prompts.analysis_pcap_schema, null, 2);
+            return `${llm_prompts.analysis_pcap_explanation_prompt
                 .replace('{pcap_data_snippet}', data.pcap_data_snippet)
-                .replace('{file_name}', data.file_name);
+                .replace('{file_name}', data.file_name)}\n\nIMPORTANT: Respond with ONLY a single JSON object that strictly adheres to the following schema. DO NOT include any other text, explanations, or code block markers (like \`\`\`json\`\`\`): \n${schema}`;
         } else if (type === 'comparison') {
-            return llm_prompts.comparison_pcap_explanation_prompt
+            const schema = JSON.stringify(llm_prompts.comparison_pcap_explanation_schema, null, 2);
+            return `${llm_prompts.comparison_pcap_explanation_prompt
                 .replace('{pcap_data_snippet1}', data.pcap_data_snippet1)
                 .replace('{pcap_data_snippet2}', data.pcap_data_snippet2)
                 .replace('{label1}', data.label1)
-                .replace('{label2}', data.label2);
+                .replace('{label2}', data.label2)}\n\nIMPORTANT: Respond with ONLY a single JSON object that strictly adheres to the following schema. DO NOT include any other text, explanations, or code block markers (like \`\`\`json\`\`\`): \n${schema}`;
         }
         return '';
     }
