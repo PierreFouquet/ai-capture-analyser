@@ -158,6 +158,3 @@ export const llm_prompts = {
         required: ["overall_comparison_summary", "key_differences", "key_similarities", "security_implications", "important_timestamps_packets"]
     },
 };
-
-// Make the configuration available globally
-pcapAnalyzerConfig = { llm_models, llm_settings, llm_prompts };
