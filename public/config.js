@@ -47,8 +47,8 @@ export const llm_models = {
 
 // llm_settings: Default model to use.
 export const llm_settings = {
-    default_llm_model_analysis: "DeepSeek R1 Distill Qwen 32B",
-    default_llm_model_comparison: "DeepSeek R1 Distill Qwen 32B",
+    default_llm_model_analysis: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+    default_llm_model_comparison: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
     async_mode_enabled: true
 };
 

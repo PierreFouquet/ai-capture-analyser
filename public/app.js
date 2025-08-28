@@ -2,11 +2,13 @@
 import { llm_models, llm_settings } from './config.js';
 import { PcapParser } from './pcapParser.js';
 import { ReportRenderer } from './reportRenderer.js';
+import { PDFExporter } from './pdfExporter.js';
 
 export class PCAPAnalyzerApp {
     constructor() {
         this.pcapParser = new PcapParser();
         this.reportRenderer = new ReportRenderer();
+        this.pdfExporter = new PDFExporter();
         this.currentAnalysisData = null;
         
         this.initializeDOMElements();
@@ -237,7 +239,36 @@ export class PCAPAnalyzerApp {
     }
 
     exportPDF() {
-        this.showMessage('PDF export functionality would be implemented in a production version', false);
+        if (!this.currentAnalysisData) {
+            this.showMessage('No report available to export.', true);
+            return;
+        }
+
+        this.showMessage('Generating PDF...', false);
+        
+        try {
+            if (this.currentAnalysisData.type === 'analysis') {
+                this.pdfExporter.exportAnalysisReport(
+                    this.currentAnalysisData.data,
+                    this.currentAnalysisData.fileName
+                );
+            } else {
+                this.pdfExporter.exportComparisonReport(
+                    this.currentAnalysisData.data,
+                    this.currentAnalysisData.file1Name,
+                    this.currentAnalysisData.file2Name
+                );
+            }
+            
+            setTimeout(() => {
+                this.hideMessage();
+                this.showMessage('PDF downloaded successfully!', false);
+            }, 1000);
+            
+        } catch (error) {
+            console.error('Error generating PDF:', error);
+            this.showMessage('Failed to generate PDF. Please try again.', true);
+        }
     }
 
     exportJSON() {
@@ -255,7 +286,7 @@ export class PCAPAnalyzerApp {
         
         this.showMessage('JSON report downloaded successfully', false);
     }
-}
+} // Added missing closing brace for the class
 
 // Initialize the application when the DOM is loaded
 document.addEventListener('DOMContentLoaded', () => {
