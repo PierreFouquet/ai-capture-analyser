@@ -63,8 +63,8 @@ export const llm_models = {
 
 // llm_settings: Global LLM settings
 export const llm_settings = {
-    default_llm_model_analysis: "@cf/openchat/openchat-3.5-0106",
-    default_llm_model_comparison: "@cf/openchat/openchat-3.5-0106",
+    default_llm_model_analysis: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+    default_llm_model_comparison: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
     // Note: async_mode_enabled is for the Python backend, not relevant for this JS/TS app
 };
 

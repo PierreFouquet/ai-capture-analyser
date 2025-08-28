@@ -6,30 +6,24 @@ import { PDFExporter } from './pdfExporter.js';
 
 export class PCAPAnalyzerApp {
     constructor() {
-        // Initialize utilities
+        // Instantiate utility classes
         this.pcapParser = new PcapParser();
         this.reportRenderer = new ReportRenderer();
         this.pdfExporter = new PDFExporter();
-
-        // Hold the current report data
+        
+        // State to hold the current analysis data
         this.currentAnalysisData = null;
         
-        // Expose configuration for the entire application
-        this.config = { llm_models, llm_settings, llm_prompts };
-        
-        // Initialize DOM elements and bind events
+        // Initialize DOM elements and bind event listeners
         this.initializeDOMElements();
         this.bindEvents();
         this.populateLlmModels();
     }
 
-    /**
-     * Initializes all necessary DOM elements.
-     */
+    // Finds and stores references to key HTML elements
     initializeDOMElements() {
         this.pcapFile1 = document.getElementById('pcap-file-1');
         this.pcapFile2 = document.getElementById('pcap-file-2');
-        this.pcapFile3 = document.getElementById('pcap-file-3');
         this.llmModelSelect1 = document.getElementById('model-select-1');
         this.llmModelSelect2 = document.getElementById('model-select-2');
         this.startAnalysisBtn = document.getElementById('start-analysis-btn');
@@ -39,75 +33,58 @@ export class PCAPAnalyzerApp {
         this.messageBox = document.getElementById('message-box');
         this.messageText = document.getElementById('message-text');
         this.messageClose = document.getElementById('message-close');
+        this.exportButtons = document.getElementById('export-buttons');
         this.exportPdfBtn = document.getElementById('export-pdf');
         this.exportJsonBtn = document.getElementById('export-json');
-        this.exportButtonsContainer = document.getElementById('export-buttons');
-        this.progressValue = document.getElementById('analysis-progress');
     }
 
-    /**
-     * Binds all event listeners to their respective DOM elements.
-     */
+    // Attaches event listeners to interactive elements
     bindEvents() {
         this.startAnalysisBtn.addEventListener('click', () => this.startAnalysis());
         this.startComparisonBtn.addEventListener('click', () => this.startComparison());
+        this.messageClose.addEventListener('click', () => this.hideMessage());
         this.exportPdfBtn.addEventListener('click', () => this.exportPDF());
         this.exportJsonBtn.addEventListener('click', () => this.exportJSON());
-        this.messageClose.addEventListener('click', () => this.hideMessage());
     }
 
-    /**
-     * Populates the LLM model dropdowns with available models from config.js.
-     */
+    // Populates the LLM model dropdowns from the imported config
     populateLlmModels() {
-        if (!this.config || !this.config.llm_models) {
-            console.error("LLM models configuration is not available.");
-            return;
-        }
-
-        const models = Object.entries(this.config.llm_models);
-        [this.llmModelSelect1, this.llmModelSelect2].forEach(selectElement => {
-            selectElement.innerHTML = '';
-            models.forEach(([key, model]) => {
+        const models = Object.keys(llm_models);
+        const createOptions = (selectElement) => {
+            selectElement.innerHTML = ''; // Clear existing options
+            models.forEach(key => {
                 const option = document.createElement('option');
                 option.value = key;
-                option.textContent = `${model.name} (${model.provider})`;
+                option.textContent = llm_models[key].name;
                 selectElement.appendChild(option);
             });
-        });
+        };
+        createOptions(this.llmModelSelect1);
+        createOptions(this.llmModelSelect2);
+        
+        // Set default values if available
+        this.llmModelSelect1.value = llm_settings.default_llm_model_analysis || models[0];
+        this.llmModelSelect2.value = llm_settings.default_llm_model_comparison || models[0];
     }
-
-    /**
-     * Shows a custom message box with the given message.
-     * @param {string} message The message to display.
-     * @param {boolean} isError If true, the message is styled as an error.
-     */
+    
+    // Shows a message in a custom message box
     showMessage(message, isError = false) {
         this.messageText.textContent = message;
         this.messageBox.style.display = 'flex';
+        this.messageBox.classList.remove('bg-red-500', 'bg-green-500');
         if (isError) {
-            this.messageBox.classList.add('bg-red-200');
-            this.messageText.classList.add('text-red-800');
-            this.messageBox.classList.remove('bg-green-200');
-            this.messageText.classList.remove('text-green-800');
+            this.messageBox.classList.add('bg-red-500');
         } else {
-            this.messageBox.classList.add('bg-green-200');
-            this.messageText.classList.add('text-green-800');
-            this.messageBox.classList.remove('bg-red-200');
-            this.messageText.classList.remove('text-red-800');
+            this.messageBox.classList.add('bg-green-500');
         }
     }
-
-    /**
-     * Hides the custom message box.
-     */
+    
+    // Hides the custom message box
     hideMessage() {
         this.messageBox.style.display = 'none';
     }
 
-    /**
-     * Starts the PCAP analysis process.
-     */
+    // Handles the analysis button click
     async startAnalysis() {
         const file = this.pcapFile1.files[0];
         const llmModelKey = this.llmModelSelect1.value;
@@ -117,145 +94,138 @@ export class PCAPAnalyzerApp {
             return;
         }
 
-        this.hideMessage();
         this.loadingIndicator.style.display = 'flex';
         this.reportContainer.innerHTML = '';
-        this.exportButtonsContainer.classList.add('hidden');
-
+        this.exportButtons.classList.add('hidden');
+        this.hideMessage();
+        
         try {
-            // Simulate file parsing and LLM analysis
+            // Simulate parsing the file and getting a JSON report
             const pcapData = await this.pcapParser.parse(file, (progress) => {
-                this.progressValue.style.width = `${progress}%`;
+                const progressBar = document.getElementById('analysis-progress');
+                if (progressBar) {
+                    progressBar.style.width = `${progress}%`;
+                }
             });
             
-            const analysisPrompt = this.config.llm_prompts.analysis_pcap_explanation;
-            const analysisSchema = this.config.llm_prompts.analysis_pcap_explanation_schema;
-
-            // This part would typically send data to a backend for LLM analysis.
-            // For this demo, we'll simulate the LLM response.
-            const llmResponse = await new Promise(resolve => {
-                setTimeout(() => {
-                    resolve({
-                        summary: "The packet capture primarily shows DNS and HTTP traffic, with a mix of TCP and UDP packets. A significant portion of the traffic is encrypted.",
-                        anomalies_and_errors: ["Possible DNS tunneling detected due to unusual query patterns.", "Several TCP retransmission events observed."],
-                        sip_rtp_info: "No SIP or RTP traffic was identified in this capture.",
-                        important_timestamps_packets: "The high number of TCP retransmissions began around packet 1500.",
-                    });
-                }, 1500); // Simulate network latency and processing time
-            });
-            
-            const fullAnalysisData = {
-                ...pcapData,
-                llmAnalysis: llmResponse
+            // Mocking the LLM API call response structure from the backend
+            const analysisResult = {
+                summary: "This report analyzes a sample PCAP file. It contains a mix of network traffic, primarily focusing on TCP and HTTP protocols. There are several DNS queries, some of which appear to be for external services. No major anomalies or security threats were detected in this small sample.",
+                anomalies_and_errors: [
+                    "Repeated DNS queries for a single domain.",
+                    "A few out-of-order TCP packets."
+                ],
+                sip_rtp_info: "No SIP or RTP traffic was identified in this capture.",
+                important_timestamps_packets: "Packet 10 and 15 show the start of a TCP handshake.",
+                protocol_distribution: pcapData.protocolDistribution, // Use data from the parser
+                packetCount: pcapData.packetCount,
+                duration: pcapData.duration,
+                timeline: pcapData.timeline
             };
-
+            
             this.currentAnalysisData = {
                 type: 'analysis',
-                data: fullAnalysisData,
+                data: analysisResult,
                 fileName: file.name
             };
 
-            const report = this.reportRenderer.renderAnalysisReport(fullAnalysisData, file.name);
-            this.reportContainer.innerHTML = report.html;
-            report.postRender();
+            const renderedReport = this.reportRenderer.renderAnalysisReport(analysisResult, file.name);
+            this.reportContainer.innerHTML = renderedReport.html;
+            renderedReport.postRender();
 
             this.showMessage('Analysis complete!', false);
-            this.exportButtonsContainer.classList.remove('hidden');
+            this.loadingIndicator.style.display = 'none';
+            this.exportButtons.classList.remove('hidden');
 
         } catch (error) {
             console.error('Analysis failed:', error);
             this.showMessage(`Analysis failed: ${error.message}`, true);
-        } finally {
             this.loadingIndicator.style.display = 'none';
-            this.progressValue.style.width = '0%';
+            this.exportButtons.classList.add('hidden');
         }
     }
 
-    /**
-     * Starts the PCAP comparison process.
-     */
+    // Handles the comparison button click
     async startComparison() {
-        const file1 = this.pcapFile2.files[0];
-        const file2 = this.pcapFile3.files[0];
+        const file1 = this.pcapFile1.files[0];
+        const file2 = this.pcapFile2.files[0];
         const llmModelKey = this.llmModelSelect2.value;
-        
+
         if (!file1 || !file2) {
             this.showMessage('Please select two PCAP files for comparison.', true);
             return;
         }
-
-        this.hideMessage();
+        
         this.loadingIndicator.style.display = 'flex';
         this.reportContainer.innerHTML = '';
-        this.exportButtonsContainer.classList.add('hidden');
+        this.exportButtons.classList.add('hidden');
+        this.hideMessage();
 
         try {
-            // Simulate parsing of both files
+            // Mock file parsing
             const pcapData1 = await this.pcapParser.parse(file1, (progress) => {
-                this.progressValue.style.width = `${progress / 2}%`;
+                const progressBar = document.getElementById('analysis-progress');
+                if (progressBar) progressBar.style.width = `${progress / 2}%`; // Half progress
             });
             const pcapData2 = await this.pcapParser.parse(file2, (progress) => {
-                this.progressValue.style.width = `${50 + progress / 2}%`;
+                const progressBar = document.getElementById('analysis-progress');
+                if (progressBar) progressBar.style.width = `${50 + progress / 2}%`; // Remaining progress
             });
 
-            // This part would typically send data to a backend for LLM comparison.
-            // For this demo, we'll simulate the LLM response.
-            const llmResponse = await new Promise(resolve => {
-                setTimeout(() => {
-                    resolve({
-                        overall_comparison_summary: "The two packet captures show significant differences. File 1 contains a high volume of web traffic, while File 2 is dominated by VoIP (SIP and RTP) communication.",
-                        key_differences: ["File 1 shows extensive HTTP and DNS activity; File 2 has none.", "File 2 contains SIP call signaling and multiple RTP streams for voice data, which are completely absent in File 1.", "File 1 contains a variety of protocols, while File 2 is highly specialized."],
-                        key_similarities: ["Both captures were of a similar duration.", "Both captures were from the same network segment."],
-                        security_implications: ["The high volume of DNS and HTTP traffic in File 1 could indicate a potential botnet or malware activity if not properly controlled.", "The unencrypted RTP streams in File 2 could be vulnerable to eavesdropping."],
-                        important_timestamps_packets: "In File 2, the SIP INVITE for the call occurred at packet 23 and the call ended with a BYE at packet 350.",
-                    });
-                }, 2000); // Simulate network latency and processing time
-            });
-
-            const fullComparisonData = {
+            // Mocking the LLM API call response structure
+            const comparisonResult = {
+                overall_comparison_summary: "File 1 is a typical web browsing capture with a mix of HTTP and HTTPS traffic, while File 2 appears to contain mostly voice-over-IP (VoIP) traffic, with a high concentration of SIP and RTP packets. This suggests File 1 is from a regular internet user and File 2 is from a communication system.",
+                key_differences: [
+                    "Protocol distribution: File 1 is dominated by HTTP/HTTPS, while File 2 is dominated by SIP/RTP.",
+                    "File 2 has a higher volume of UDP traffic due to RTP, whereas File 1 is primarily TCP.",
+                    "The average packet size in File 2 is smaller due to the nature of VoIP payloads."
+                ],
+                key_similarities: [
+                    "Both captures contain some background DNS and ARP traffic.",
+                    "Both show evidence of standard TCP handshakes at the beginning of sessions."
+                ],
+                security_implications: "The VoIP traffic in File 2, if unencrypted (G.711u), is vulnerable to eavesdropping. File 1 contains standard web traffic, with the usual security considerations for unencrypted HTTP connections.",
+                important_timestamps_packets: "In File 2, packet 42 and 43 mark the start of a SIP INVITE transaction.",
                 file1: pcapData1,
-                file2: pcapData2,
-                llmComparison: llmResponse
+                file2: pcapData2
             };
-
+            
             this.currentAnalysisData = {
                 type: 'comparison',
-                data: fullComparisonData,
+                data: comparisonResult,
                 file1Name: file1.name,
                 file2Name: file2.name
             };
 
-            const report = this.reportRenderer.renderComparisonReport(fullComparisonData, file1.name, file2.name);
-            this.reportContainer.innerHTML = report.html;
-            report.postRender();
+            const renderedReport = this.reportRenderer.renderComparisonReport(comparisonResult, file1.name, file2.name);
+            this.reportContainer.innerHTML = renderedReport.html;
+            renderedReport.postRender();
 
             this.showMessage('Comparison complete!', false);
-            this.exportButtonsContainer.classList.remove('hidden');
+            this.loadingIndicator.style.display = 'none';
+            this.exportButtons.classList.remove('hidden');
 
         } catch (error) {
             console.error('Comparison failed:', error);
             this.showMessage(`Comparison failed: ${error.message}`, true);
-        } finally {
             this.loadingIndicator.style.display = 'none';
-            this.progressValue.style.width = '0%';
+            this.exportButtons.classList.add('hidden');
         }
     }
 
-    /**
-     * Exports the current report as a PDF.
-     */
+    // Exports the current report as a PDF
     exportPDF() {
         if (!this.currentAnalysisData) return;
         
         try {
             if (this.currentAnalysisData.type === 'analysis') {
                 this.pdfExporter.exportAnalysisReport(
-                    this.currentAnalysisData.data.llmAnalysis, 
+                    this.currentAnalysisData.data,
                     this.currentAnalysisData.fileName
                 );
             } else {
                 this.pdfExporter.exportComparisonReport(
-                    this.currentAnalysisData.data.llmComparison,
+                    this.currentAnalysisData.data,
                     this.currentAnalysisData.file1Name,
                     this.currentAnalysisData.file2Name
                 );
@@ -272,9 +242,7 @@ export class PCAPAnalyzerApp {
         }
     }
 
-    /**
-     * Exports the current report as a JSON file.
-     */
+    // Exports the current report as a JSON file
     exportJSON() {
         if (!this.currentAnalysisData) return;
         
