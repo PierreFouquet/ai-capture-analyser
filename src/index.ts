@@ -9,16 +9,14 @@ export class AnalysisObject {
     private env: Env;
     private status: 'idle' | 'processing' | 'complete' | 'error';
     private result: any;
+    private llmService: LLMService;
 
     constructor(state: DurableObjectState, env: Env) {
         this.state = state;
         this.env = env;
         this.status = 'idle';
         this.result = {};
-
-        // Load status from storage
-        this.state.storage.get<AnalysisObjectState['status']>('status')
-            .then(s => this.status = s || 'idle');
+        this.llmService = new LLMService(env);
     }
 
     // Handle requests to the Durable Object
@@ -29,8 +27,10 @@ export class AnalysisObject {
 
             if (path.endsWith("/status")) {
                 return this.handleStatusRequest();
-            } else if (path.endsWith("/process")) {
-                return await this.handleProcessRequest(request);
+            } else if (path.endsWith("/analyze")) {
+                return await this.handleAnalyzeRequest(request);
+            } else if (path.endsWith("/compare")) {
+                return await this.handleCompareRequest(request);
             } else {
                 return new Response("Not Found", { status: 404 });
             }
@@ -48,188 +48,144 @@ export class AnalysisObject {
         });
     }
 
-    private async handleProcessRequest(request: Request): Promise<Response> {
-        if (this.status !== 'idle') {
-            return new Response("Already processing a request.", { status: 409 });
+    private async handleAnalyzeRequest(request: Request): Promise<Response> {
+        if (this.status === 'processing') {
+            return new Response("Analysis is already in progress.", { status: 409 });
         }
 
-        this.status = 'processing';
-        await this.state.storage.put('status', this.status);
-
         try {
-            const data = await request.json() as { pcap_data: string; file_name: string; llm_model_key: string };
-            const { pcap_data, file_name, llm_model_key } = data;
-
+            const body = await request.json();
+            const { pcap_data, file_name, llm_model_key } = body;
+            
             if (!pcap_data || !file_name || !llm_model_key) {
-                throw new Error("Missing required parameters: pcap_data, file_name, or llm_model_key.");
+                this.status = 'error';
+                this.result = { error: 'Missing required parameters.' };
+                await this.state.storage.put('status', 'error');
+                return new Response(JSON.stringify(this.result), { status: 400 });
             }
 
-            // In a real implementation, you would parse the PCAP data here
-            // For this example, we'll use placeholder data
-            const pcapDataSnippets = ["Placeholder packet data for demonstration"];
-            
-            const llmResponse = await this.callLLM(
-                llm_model_key,
-                "analysis",
-                pcapDataSnippets.join('\n'),
-                this.env.config
-            );
+            this.status = 'processing';
+            this.result = { file_name };
+            await this.state.storage.put('status', 'processing');
 
-            const reportData = JSON.parse(llmResponse);
-            const htmlReport = this.renderReport(reportData, "analysis", { file_name });
+            // Offload the heavy lifting to a separate function
+            this.processAnalysis(pcap_data, llm_model_key, file_name);
 
-            this.status = 'complete';
-            this.result = { report: htmlReport };
+            return new Response(JSON.stringify({ status: 'started' }), { status: 202 });
 
         } catch (e: any) {
             this.status = 'error';
             this.result = { error: e.message };
-            return new Response(`Processing failed: ${e.message}`, { status: 500 });
-        } finally {
-            await this.state.storage.put('status', this.status);
-            await this.state.storage.put('result', this.result);
+            await this.state.storage.put('status', 'error');
+            return new Response(JSON.stringify(this.result), { status: 500 });
         }
-
-        return new Response(JSON.stringify(this.result), {
-            headers: { 'Content-Type': 'application/json' },
-        });
     }
 
-    private async callLLM(model_key: string, context: string, pcap_data_snippet: string, config: any): Promise<string> {
-        const modelInfo = config.llm_models[model_key];
-        if (!modelInfo) {
-            throw new Error(`Model key '${model_key}' not found.`);
+    private async handleCompareRequest(request: Request): Promise<Response> {
+        if (this.status === 'processing') {
+            return new Response("Comparison is already in progress.", { status: 409 });
         }
 
-        const modelName = modelInfo.name;
-        const provider = modelInfo.provider;
-        const promptKey = config.llm_settings[`prompt_key_${context}`] || `${context}_pcap_explanation`;
-        const promptTemplate = config.llm_prompts[promptKey];
-        const schema = config.llm_prompts[`${promptKey}_schema`];
-
-        if (!promptTemplate) {
-            throw new Error(`Prompt template for '${context}' not found.`);
-        }
-        if (!schema) {
-            throw new Error(`Schema for '${context}' not found.`);
-        }
-
-        const prompt = promptTemplate
-            .replace('{pcap_data_snippet}', pcap_data_snippet)
-            .replace('{sip_udp_ports}', config.voip_ports.sip_udp.join(', '))
-            .replace('{sip_tcp_ports}', config.voip_ports.sip_tcp.join(', '))
-            .replace('{sip_tls_ports}', config.voip_ports.sip_tls.join(', '))
-            .replace('{rtp_udp_ports}', config.voip_ports.rtp_udp.join(', '));
-
-        console.log(`Calling LLM provider: ${provider} with model: ${modelName}`);
-
-        // Handle different providers
-        if (provider === "Cloudflare") {
-            // Use Cloudflare AI binding
-            const ai = this.env.AI;
-            const inputs = {
-                prompt: prompt,
-                max_tokens: config.llm_settings.max_tokens || 4096,
-                temperature: config.llm_settings.temperature || 0.1
-            };
+        try {
+            const body = await request.json();
+            const { pcap_data1, pcap_data2, file_name1, file_name2, llm_model_key } = body;
             
-            try {
-                const response = await ai.run(model_key, inputs);
-                // The response from Cloudflare AI might be a text string, so we need to parse it as JSON
-                if (typeof response === 'string') {
-                    try {
-                        // Try to parse as JSON
-                        return response;
-                    } catch (e) {
-                        // If it's not JSON, wrap it in a proper JSON structure
-                        return JSON.stringify({
-                            summary: response,
-                            anomalies_and_errors: [],
-                            sip_rtp_info: "N/A",
-                            important_timestamps_packets: "N/A"
-                        });
-                    }
-                } else {
-                    return JSON.stringify(response);
-                }
-            } catch (e: any) {
-                console.error("Error calling Cloudflare AI:", e);
-                throw new Error(`Failed to call Cloudflare AI: ${e.message}`);
+            if (!pcap_data1 || !pcap_data2 || !file_name1 || !file_name2 || !llm_model_key) {
+                this.status = 'error';
+                this.result = { error: 'Missing required parameters.' };
+                await this.state.storage.put('status', 'error');
+                return new Response(JSON.stringify(this.result), { status: 400 });
             }
-        } else if (provider === "Google") {
-            // Note: In the actual worker, you would use the AI binding like this:
-            // const ai = this.env.AI;
-            // const llm_response = await ai.run(modelName, { prompt, schema });
-            // For this example, we return a mock response.
-            return JSON.stringify({
-                "summary": "This is a mock summary from a Google model.",
-                "anomalies_and_errors": ["Mock anomaly 1", "Mock error 2"],
-                "sip_rtp_info": "Mock SIP/RTP info.",
-                "important_timestamps_packets": "Mock important packets."
-            });
-        } else if (provider === "OpenAI") {
-            // Implement OpenAI call
-            // Mock response for now
-            return JSON.stringify({
-                "summary": "This is a mock summary from an OpenAI model.",
-                "anomalies_and_errors": ["OpenAI mock anomaly"],
-                "sip_rtp_info": "OpenAI mock SIP/RTP info.",
-                "important_timestamps_packets": "OpenAI mock important packets."
-            });
-        } else if (provider === "Anthropic") {
-            // Implement Anthropic call
-            // Mock response for now
-            return JSON.stringify({
-                "summary": "This is a mock summary from an Anthropic model.",
-                "anomalies_and_errors": ["Anthropic mock anomaly"],
-                "sip_rtp_info": "Anthropic mock SIP/RTP info.",
-                "important_timestamps_packets": "Anthropic mock important packets."
-            });
-        } else if (provider === "Deepseek") {
-            // Implement Deepseek call
-            // Mock response for now
-            return JSON.stringify({
-                "summary": "This is a mock summary from a Deepseek model.",
-                "anomalies_and_errors": ["Deepseek mock anomaly"],
-                "sip_rtp_info": "Deepseek mock SIP/RTP info.",
-                "important_timestamps_packets": "Deepseek mock important packets."
-            });
-        }
 
-        throw new Error(`LLM provider '${provider}' is not implemented.`);
+            this.status = 'processing';
+            this.result = { file_name1, file_name2 };
+            await this.state.storage.put('status', 'processing');
+
+            this.processComparison(pcap_data1, pcap_data2, llm_model_key, file_name1, file_name2);
+
+            return new Response(JSON.stringify({ status: 'started' }), { status: 202 });
+
+        } catch (e: any) {
+            this.status = 'error';
+            this.result = { error: e.message };
+            await this.state.storage.put('status', 'error');
+            return new Response(JSON.stringify(this.result), { status: 500 });
+        }
     }
 
-    private renderReport(report: any, report_type: string, kwargs: { [key: string]: any }): string {
-        if (report_type === "analysis") {
-            let html = `
-                <div class="report-section">
-                    <h2>Analysis Report: ${kwargs.file_name || 'File'}</h2>
-                    <div class="summary-card">
-                        <h3>Summary</h3>
-                        <p>${report.summary || 'N/A'}</p>
-                    </div>
-                    <div class="details-card">
-                        <h3>Anomalies and Errors</h3>
-                        ${report.anomalies_and_errors && report.anomalies_and_errors.length > 0 ?
-                            `<ul>${report.anomalies_and_errors.map((item: any) => `<li>${item}</li>`).join('')}</ul>` :
-                            `<p>N/A</p>`
-                        }
-                    </div>
-                    <div class="details-card">
-                        <h3>SIP/RTP Information</h3>
-                        <p>${report.sip_rtp_info || 'N/A'}</p>
-                    </div>
-                    <div class="details-card">
-                        <h3>Important Timestamps/Packets</h3>
-                        <p>${report.important_timestamps_packets || 'N/A'}</p>
-                    </div>
-                </div>
-            `;
-            return html;
+    private async processAnalysis(pcap_data: string, llm_model_key: string, file_name: string) {
+        try {
+            const prompt = this.env.config.llm_prompts.analysis_pcap_explanation.replace(
+                '{pcap_data_snippet}', `[PCAP data from ${file_name} sent as base64]`
+            );
+
+            // This is a placeholder for the actual LLM call using the Workers AI binding
+            const response = await this.llmService.callLLM(llm_model_key, prompt, this.env.config.llm_prompts.analysis_pcap_explanation_schema);
+
+            this.result.report = response;
+            this.status = 'complete';
+            await this.state.storage.put('status', 'complete');
+            await this.state.storage.put('result', this.result);
+
+        } catch (e: any) {
+            this.status = 'error';
+            this.result.error = `LLM analysis failed: ${e.message}`;
+            await this.state.storage.put('status', 'error');
         }
-        return "Unsupported report type.";
+    }
+
+    private async processComparison(pcap_data1: string, pcap_data2: string, llm_model_key: string, file_name1: string, file_name2: string) {
+        try {
+            const prompt = this.env.config.llm_prompts.comparison_pcap_explanation
+                .replace('{label1}', file_name1)
+                .replace('{pcap_data_snippet1}', `[PCAP data from ${file_name1} sent as base64]`)
+                .replace('{label2}', file_name2)
+                .replace('{pcap_data_snippet2}', `[PCAP data from ${file_name2} sent as base64]`);
+
+            const response = await this.llmService.callLLM(llm_model_key, prompt, this.env.config.llm_prompts.comparison_pcap_explanation_schema);
+
+            this.result.report = response;
+            this.status = 'complete';
+            await this.state.storage.put('status', 'complete');
+            await this.state.storage.put('result', this.result);
+
+        } catch (e: any) {
+            this.status = 'error';
+            this.result.error = `LLM comparison failed: ${e.message}`;
+            await this.state.storage.put('status', 'error');
+        }
     }
 }
+
+// LLM service class to abstract the Workers AI binding
+class LLMService {
+    private env: Env;
+
+    constructor(env: Env) {
+        this.env = env;
+    }
+
+    async callLLM(modelKey: string, prompt: string, schema: any): Promise<any> {
+        const model = this.env.config.llm_models[modelKey];
+        if (!model) {
+            throw new Error(`Model with key ${modelKey} not found in config.`);
+        }
+
+        const inputs = { prompt };
+        
+        const response = await this.env.AI.run(model.name, inputs, {
+            stream: false,
+            structured: {
+                type: "JSON",
+                schema: schema
+            }
+        });
+
+        // The response from a structured AI call is the parsed JSON
+        return response;
+    }
+}
+
 
 // The main Worker script.
 export default {
@@ -237,7 +193,7 @@ export default {
         const url = new URL(request.url);
 
         // API endpoints
-        if (url.pathname.startsWith("/api/analyze")) {
+        if (url.pathname.startsWith("/api/")) {
             // Get or create a Durable Object for this session
             const sessionId = request.headers.get("X-Session-ID") || "default";
             const id = env.ANALYSIS_OBJECT.idFromName(sessionId);
@@ -259,3 +215,7 @@ interface Env {
     AI: any; // Cloudflare AI binding
     config: any; // Configuration object
 }
+
+// Durable Object declaration for Workers AI
+export { AnalysisObject as PCAPAnalysisDurableObject };
+

@@ -35,34 +35,43 @@ export const llm_models = {
         name: "Meta Llama 4 Scout",
         provider: "Cloudflare"
     },
-    "@cf/meta/llama-3.3-70b-instruct-fp8-fast": {
-        name: "Meta Llama 3.3 70B",
+    "@cf/mistral/mistral-7b-instruct-v0.2": {
+        name: "Mistral 7b Instruct",
         provider: "Cloudflare"
     },
-    "@cf/mistralai/mistral-small-3.1-24b-instruct": {
-        name: "Mistral Small 3.1",
+    "@cf/qwen/qwen-1.8b-chat": {
+        name: "Qwen 1.8b Chat",
         provider: "Cloudflare"
-    }
+    },
+    "@cf/openchat/openchat-3.5-0106": {
+        name: "OpenChat 3.5",
+        provider: "Cloudflare"
+    },
+    "@cf/tiiuae/falcon-7b-instruct": {
+        name: "Falcon 7b Instruct",
+        provider: "Cloudflare"
+    },
+    "@cf/google/gemma-2-9b-it": {
+        name: "Google Gemma 2 9b",
+        provider: "Cloudflare"
+    },
+    "@cf/llama-4-scout-17b-16e-instruct": {
+        name: "Llama 4 Scout",
+        provider: "Cloudflare"
+    },
 };
 
-// llm_settings: Default model to use.
+// llm_settings: Global LLM settings
 export const llm_settings = {
-    default_llm_model_analysis: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
-    default_llm_model_comparison: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
-    async_mode_enabled: true
+    default_llm_model_analysis: "@cf/openchat/openchat-3.5-0106",
+    default_llm_model_comparison: "@cf/openchat/openchat-3.5-0106",
+    // Note: async_mode_enabled is for the Python backend, not relevant for this JS/TS app
 };
 
-// VoIP port configuration
-export const voip_ports = {
-    sip_udp: [9997, 9998],
-    sip_tcp: [9997, 9998],
-    sip_tls: [9997, 9998],
-    rtp_udp: [10000, 60000]
-};
-
-// llm_prompts: Prompts for the LLM models.
+// llm_prompts: LLM prompts for analysis and comparison
 export const llm_prompts = {
-    analysis_pcap_explanation: `You are a SIP and RTP packet analyst. Analyze the following packet capture data.
+    // Prompt for single PCAP analysis
+    analysis_pcap_explanation: `You are a network security analyst. Analyze the following packet capture data.
     Provide a detailed explanation covering:
     - Overall traffic summary and key protocols.
     - Identification of any anomalies, errors, or suspicious activities.
@@ -70,9 +79,11 @@ export const llm_prompts = {
     - Important timestamps or packet numbers if relevant.
     
     Respond strictly in JSON format according to the schema provided.
+    
     ---
     PCAP Data Snippet:
-    {pcap_data_snippet}`,
+    {pcap_data_snippet}
+    `,
     analysis_pcap_explanation_schema: {
         type: "object",
         properties: {
@@ -85,11 +96,11 @@ export const llm_prompts = {
                 items: {
                     type: "string"
                 },
-                description: "List of identified anomalies, errors, or suspicious activities."
+                description: "List of anomalies or errors detected."
             },
             sip_rtp_info: {
                 type: "string",
-                description: "Detailed information about SIP/RTP traffic if present, otherwise 'N/A'."
+                description: "Detailed information on SIP/RTP traffic if present, otherwise 'N/A'."
             },
             important_timestamps_packets: {
                 type: "string",
@@ -98,15 +109,17 @@ export const llm_prompts = {
         },
         required: ["summary", "anomalies_and_errors", "sip_rtp_info", "important_timestamps_packets"]
     },
-    comparison_pcap_explanation: `You are a SIP and RTP packet analyst. Compare the following two packet capture data snippets.
-    Provide a detailed explanation covering:
-    - An overall summary of the comparison.
-    - A list of key differences between the two captures.
-    - A list of key similarities between the two captures.
-    - An analysis of any security implications or risks identified.
-    - Important timestamps or packet numbers if relevant to the comparison.
+
+    // Prompt for PCAP comparison
+    comparison_pcap_explanation: `You are a network security analyst. Compare the following two packet capture data snippets.
+    Provide a detailed comparison covering:
+    - Overall summary of the comparison.
+    - Key differences between the two captures.
+    - Key similarities between the two captures.
+    - Analysis of any security implications or risks identified.
 
     Respond strictly in JSON format according to the schema provided.
+
     ---
     PCAP 1 Snippet ({label1}):
     {pcap_data_snippet1}

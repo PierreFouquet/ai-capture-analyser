@@ -1,4 +1,4 @@
-// Backend communication utilities
+// public/script.js
 import { llm_models, llm_settings, llm_prompts } from "./config.js";
 
 // Utility to handle form and report display
@@ -14,13 +14,34 @@ const loadingIndicator = document.getElementById('loading-indicator');
 const messageBox = document.getElementById('message-box');
 const messageText = document.getElementById('message-text');
 const messageClose = document.getElementById('message-close');
+const exportButtons = document.getElementById('export-buttons');
+const exportPdfBtn = document.getElementById('export-pdf');
+const exportJsonBtn = document.getElementById('export-json');
+
+import { PcapParser } from './pcapParser.js';
+import { ReportRenderer } from './reportRenderer.js';
+import { PDFExporter } from './pdfExporter.js';
+
+const pcapParser = new PcapParser();
+const reportRenderer = new ReportRenderer();
+const pdfExporter = new PDFExporter();
+
+let currentAnalysisData = null;
 
 let config = { llm_models, llm_settings, llm_prompts }; // Use the imported config
 
 // Function to show a custom message box
-function showMessage(message) {
+function showMessage(message, isError = false) {
     messageText.textContent = message;
+    if (isError) {
+        messageBox.classList.remove('bg-green-500');
+        messageBox.classList.add('bg-red-500');
+    } else {
+        messageBox.classList.remove('bg-red-500');
+        messageBox.classList.add('bg-green-500');
+    }
     messageBox.style.display = 'flex';
+    setTimeout(() => hideMessage(), 5000); // Hide after 5 seconds
 }
 
 // Function to hide the custom message box
@@ -67,8 +88,9 @@ function populateLlmModels() {
 // Call the function on page load
 window.onload = populateLlmModels;
 
+
 // Generic polling function
-async function pollStatus(sessionId, endpoint) {
+async function pollStatus(sessionId, endpoint, isComparison) {
     const statusResponse = await fetch(endpoint, {
         headers: { 'X-Session-ID': sessionId }
     });
@@ -76,12 +98,42 @@ async function pollStatus(sessionId, endpoint) {
 
     if (statusResult.status === 'complete') {
         loadingIndicator.style.display = 'none';
-        reportContainer.innerHTML = marked(statusResult.result.report);
+        
+        let renderedReport;
+        if (isComparison) {
+            renderedReport = reportRenderer.renderComparisonReport(
+                statusResult.result.report,
+                statusResult.result.file_name1,
+                statusResult.result.file_name2
+            );
+            currentAnalysisData = { 
+                data: statusResult.result.report, 
+                type: 'comparison', 
+                file1Name: statusResult.result.file_name1, 
+                file2Name: statusResult.result.file_name2
+            };
+        } else {
+            renderedReport = reportRenderer.renderAnalysisReport(
+                statusResult.result.report,
+                statusResult.result.file_name
+            );
+            currentAnalysisData = { 
+                data: statusResult.result.report, 
+                type: 'analysis', 
+                fileName: statusResult.result.file_name
+            };
+        }
+        
+        reportContainer.innerHTML = renderedReport;
+        exportButtons.classList.remove('hidden');
+
     } else if (statusResult.status === 'error') {
         loadingIndicator.style.display = 'none';
         reportContainer.innerHTML = `<p class="error-message">Error: ${statusResult.result.error}</p>`;
+        exportButtons.classList.add('hidden');
     } else {
-        setTimeout(() => pollStatus(sessionId, endpoint), 2000); // Poll every 2 seconds
+        // Poll every 2 seconds
+        setTimeout(() => pollStatus(sessionId, endpoint, isComparison), 2000);
     }
 }
 
@@ -91,21 +143,21 @@ startAnalysisBtn.addEventListener('click', async (e) => {
     
     // Clear previous report and show loading indicator
     reportContainer.innerHTML = '';
-    loadingIndicator.style.display = 'block';
+    exportButtons.classList.add('hidden');
+    loadingIndicator.style.display = 'flex';
 
     const file = pcapFile1.files[0];
     const llmModelKey = llmModelSelect1.value;
     const sessionId = 'pcap-analysis-' + Date.now();
 
     if (!file) {
-        showMessage('Please select a PCAP file for analysis.');
+        showMessage('Please select a PCAP file for analysis.', true);
         loadingIndicator.style.display = 'none';
         return;
     }
 
     try {
-        const arrayBuffer = await file.arrayBuffer();
-        const base64PcapData = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer)));
+        const base64PcapData = await pcapParser.readAsBase64(file);
         
         const response = await fetch('/api/analyze', {
             method: 'POST',
@@ -120,7 +172,7 @@ startAnalysisBtn.addEventListener('click', async (e) => {
         const result = await response.json();
 
         if (response.ok) {
-            pollStatus(sessionId, '/api/analyze/status');
+            pollStatus(sessionId, '/api/analyze/status', false);
         } else {
             loadingIndicator.style.display = 'none';
             reportContainer.innerHTML = `<p class="error-message">Error from server: ${result.error || response.statusText}</p>`;
@@ -136,7 +188,8 @@ startComparisonBtn.addEventListener('click', async (e) => {
     e.preventDefault();
 
     reportContainer.innerHTML = '';
-    loadingIndicator.style.display = 'block';
+    exportButtons.classList.add('hidden');
+    loadingIndicator.style.display = 'flex';
     
     const file1 = pcapFile2.files[0];
     const file2 = pcapFile3.files[0];
@@ -144,17 +197,14 @@ startComparisonBtn.addEventListener('click', async (e) => {
     const sessionId = 'pcap-comparison-' + Date.now();
 
     if (!file1 || !file2) {
-        showMessage('Please select two PCAP files for comparison.');
+        showMessage('Please select two PCAP files for comparison.', true);
         loadingIndicator.style.display = 'none';
         return;
     }
 
     try {
-        const arrayBuffer1 = await file1.arrayBuffer();
-        const base64PcapData1 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer1)));
-
-        const arrayBuffer2 = await file2.arrayBuffer();
-        const base64PcapData2 = btoa(String.fromCharCode(...new Uint8Array(arrayBuffer2)));
+        const base64PcapData1 = await pcapParser.readAsBase64(file1);
+        const base64PcapData2 = await pcapParser.readAsBase64(file2);
 
         const response = await fetch('/api/compare', {
             method: 'POST',
@@ -171,7 +221,7 @@ startComparisonBtn.addEventListener('click', async (e) => {
         const result = await response.json();
 
         if (response.ok) {
-            pollStatus(sessionId, '/api/compare/status');
+            pollStatus(sessionId, '/api/compare/status', true);
         } else {
             loadingIndicator.style.display = 'none';
             reportContainer.innerHTML = `<p class="error-message">Error from server: ${result.error || response.statusText}</p>`;
@@ -179,5 +229,35 @@ startComparisonBtn.addEventListener('click', async (e) => {
     } catch (e) {
         loadingIndicator.style.display = 'none';
         reportContainer.innerHTML = `<p class="error-message">An unexpected error occurred: ${e.message}</p>`;
+    }
+});
+
+// Export buttons event listeners
+exportPdfBtn.addEventListener('click', () => {
+    if (currentAnalysisData.type === 'analysis') {
+        pdfExporter.exportAnalysisReport(
+            currentAnalysisData.data,
+            currentAnalysisData.fileName
+        );
+    } else if (currentAnalysisData.type === 'comparison') {
+        pdfExporter.exportComparisonReport(
+            currentAnalysisData.data,
+            currentAnalysisData.file1Name,
+            currentAnalysisData.file2Name
+        );
+    }
+});
+
+exportJsonBtn.addEventListener('click', () => {
+    if (currentAnalysisData) {
+        const dataStr = JSON.stringify(currentAnalysisData.data, null, 2);
+        const dataUri = 'data:application/json;charset=utf-8,' + encodeURIComponent(dataStr);
+        const exportFileDefaultName = `pcap-report-${Date.now()}.json`;
+
+        const linkElement = document.createElement('a');
+        linkElement.setAttribute('href', dataUri);
+        linkElement.setAttribute('download', exportFileDefaultName);
+        linkElement.click();
+        showMessage('JSON report downloaded successfully', false);
     }
 });

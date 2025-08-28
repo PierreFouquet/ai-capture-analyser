@@ -40,73 +40,34 @@ export class PDFExporter {
         this.pdf.text(lines, 20, yPosition);
         return yPosition + (lines.length * 7);
     }
-
-    addBulletList(items, yPosition, maxWidth = 170) {
+    
+    addBulletList(items, yPosition) {
         this.pdf.setFontSize(12);
         let currentY = yPosition;
-        
         items.forEach(item => {
-            const bullet = "• ";
-            const bulletWidth = this.pdf.getTextWidth(bullet);
-            const text = bullet + item;
-            const lines = this.pdf.splitTextToSize(text, maxWidth);
-            
-            // Handle first line with bullet
-            this.pdf.text(bullet, 20, currentY + 5);
-            this.pdf.text(lines[0].substring(bullet.length), 20 + bulletWidth, currentY + 5);
-            
-            // Handle remaining lines
-            for (let i = 1; i < lines.length; i++) {
-                currentY += 6;
-                this.pdf.text(lines[i], 20 + bulletWidth, currentY + 5);
-            }
-            
-            currentY += 8;
+            const lines = this.pdf.splitTextToSize(`• ${item}`, 160);
+            this.pdf.text(lines, 25, currentY);
+            currentY += (lines.length * 7);
         });
-        
         return currentY;
     }
 
-    addHorizontalLine(yPosition) {
-        this.pdf.setDrawColor(200, 200, 200);
-        this.pdf.line(20, yPosition, 190, yPosition);
-        return yPosition + 5;
-    }
-
-    addPageNumber(pageNumber) {
+    addPageNumber(page) {
         this.pdf.setFontSize(10);
-        this.pdf.text(`Page ${pageNumber}`, 105, 280, { align: 'center' });
+        this.pdf.setTextColor(150, 150, 150);
+        this.pdf.text(`Page ${page}`, 105, 280, { align: 'center' });
     }
 
     exportAnalysisReport(data, fileName) {
         this.initPDF();
-        let yPosition = 20;
+        let yPosition = this.addTitle(`Analysis Report: ${fileName}`);
         let page = 1;
-        
-        // Title
-        yPosition = this.addTitle(`PCAP Analysis Report: ${fileName}`, yPosition);
-        yPosition = this.addHorizontalLine(yPosition);
-        
-        // Summary section
+
+        // Summary
         yPosition = this.addSectionTitle("Summary", yPosition + 10);
         yPosition = this.addContent(data.summary || 'No summary available.', yPosition + 5);
-        
-        // Check if we need a new page
-        if (yPosition > 250) {
-            this.addPageNumber(page);
-            this.pdf.addPage();
-            page++;
-            yPosition = 20;
-        }
-        
-        // Protocol Distribution
-        yPosition = this.addSectionTitle("Protocol Distribution", yPosition + 10);
-        const protocolText = Object.entries(data.protocolDistribution)
-            .map(([protocol, percentage]) => `${protocol}: ${percentage}%`)
-            .join(', ');
-        yPosition = this.addContent(protocolText, yPosition + 5);
-        
-        // Check if we need a new page
+
+        // Check for new page
         if (yPosition > 250) {
             this.addPageNumber(page);
             this.pdf.addPage();
@@ -116,34 +77,48 @@ export class PDFExporter {
         
         // Anomalies and Errors
         yPosition = this.addSectionTitle("Anomalies and Errors", yPosition + 10);
-        if (data.anomalies && data.anomalies.length > 0) {
-            yPosition = this.addBulletList(
-                data.anomalies.map(a => `${a.time}: ${a.description} (${a.severity} severity)`),
-                yPosition + 5
-            );
+        if (data.anomalies_and_errors && data.anomalies_and_errors.length > 0) {
+            yPosition = this.addBulletList(data.anomalies_and_errors, yPosition + 5);
         } else {
-            yPosition = this.addContent("No significant anomalies detected.", yPosition + 5);
+            yPosition = this.addContent("N/A", yPosition + 5);
         }
         
-        // Add page number to the last page
-        this.addPageNumber(page);
+        // Check for new page
+        if (yPosition > 250) {
+            this.addPageNumber(page);
+            this.pdf.addPage();
+            page++;
+            yPosition = 20;
+        }
+
+        // SIP/RTP Information
+        yPosition = this.addSectionTitle("SIP/RTP Information", yPosition + 10);
+        yPosition = this.addContent(data.sip_rtp_info || 'N/A', yPosition + 5);
+
+        // Check for new page
+        if (yPosition > 250) {
+            this.addPageNumber(page);
+            this.pdf.addPage();
+            page++;
+            yPosition = 20;
+        }
+
+        // Important Timestamps/Packets
+        yPosition = this.addSectionTitle("Important Timestamps/Packets", yPosition + 10);
+        yPosition = this.addContent(data.important_timestamps_packets || 'N/A', yPosition + 5);
         
-        // Save the PDF
-        this.pdf.save(`pcap-analysis-${fileName}-${new Date().toISOString().split('T')[0]}.pdf`);
+        this.addPageNumber(page);
+        this.pdf.save(`analysis-report-${fileName}.pdf`);
     }
 
     exportComparisonReport(data, file1Name, file2Name) {
         this.initPDF();
-        let yPosition = 20;
+        let yPosition = this.addTitle(`Comparison Report: ${file1Name} vs ${file2Name}`);
         let page = 1;
         
-        // Title
-        yPosition = this.addTitle(`PCAP Comparison Report: ${file1Name} vs ${file2Name}`, yPosition);
-        yPosition = this.addHorizontalLine(yPosition);
-        
-        // Summary section
-        yPosition = this.addSectionTitle("Comparison Summary", yPosition + 10);
-        yPosition = this.addContent(data.summary || 'No summary available.', yPosition + 5);
+        // Summary
+        yPosition = this.addSectionTitle("Overall Comparison Summary", yPosition + 10);
+        yPosition = this.addContent(data.overall_comparison_summary || 'No summary available.', yPosition + 5);
         
         // Check if we need a new page
         if (yPosition > 250) {
@@ -155,8 +130,8 @@ export class PDFExporter {
         
         // Key Differences
         yPosition = this.addSectionTitle("Key Differences", yPosition + 10);
-        if (data.differences && data.differences.length > 0) {
-            yPosition = this.addBulletList(data.differences, yPosition + 5);
+        if (data.key_differences && data.key_differences.length > 0) {
+            yPosition = this.addBulletList(data.key_differences, yPosition + 5);
         } else {
             yPosition = this.addContent("No significant differences found.", yPosition + 5);
         }
@@ -171,16 +146,44 @@ export class PDFExporter {
         
         // Key Similarities
         yPosition = this.addSectionTitle("Key Similarities", yPosition + 10);
-        if (data.similarities && data.similarities.length > 0) {
-            yPosition = this.addBulletList(data.similarities, yPosition + 5);
+        if (data.key_similarities && data.key_similarities.length > 0) {
+            yPosition = this.addBulletList(data.key_similarities, yPosition + 5);
         } else {
             yPosition = this.addContent("No significant similarities found.", yPosition + 5);
         }
+
+        // Check if we need a new page
+        if (yPosition > 250) {
+            this.addPageNumber(page);
+            this.pdf.addPage();
+            page++;
+            yPosition = 20;
+        }
+
+        // Security Implications
+        yPosition = this.addSectionTitle("Security Implications", yPosition + 10);
+        if (data.security_implications && data.security_implications.length > 0) {
+            yPosition = this.addBulletList(data.security_implications, yPosition + 5);
+        } else {
+            yPosition = this.addContent("N/A", yPosition + 5);
+        }
+
+        // Check if we need a new page
+        if (yPosition > 250) {
+            this.addPageNumber(page);
+            this.pdf.addPage();
+            page++;
+            yPosition = 20;
+        }
+
+        // Important Timestamps
+        yPosition = this.addSectionTitle("Important Timestamps/Packets", yPosition + 10);
+        yPosition = this.addContent(data.important_timestamps_packets || 'N/A', yPosition + 5);
         
         // Add page number to the last page
         this.addPageNumber(page);
         
         // Save the PDF
-        this.pdf.save(`pcap-comparison-${file1Name}-vs-${file2Name}-${new Date().toISOString().split('T')[0]}.pdf`);
+        this.pdf.save(`comparison-report-${file1Name}-vs-${file2Name}.pdf`);
     }
 }

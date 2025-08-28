@@ -40,43 +40,9 @@ export class ChartRenderer {
                     legend: {
                         position: 'right',
                     },
-                    tooltip: {
-                        callbacks: {
-                            label: function(context) {
-                                return `${context.label}: ${context.raw}%`;
-                            }
-                        }
-                    }
-                }
-            }
-        });
-    }
-
-    createTimelineChart(timelineData, canvasId) {
-        const ctx = document.getElementById(canvasId);
-        if (!ctx) {
-            console.error(`Canvas element with id ${canvasId} not found`);
-            return null;
-        }
-        
-        return new Chart(ctx.getContext('2d'), {
-            type: 'line',
-            data: {
-                labels: timelineData.labels,
-                datasets: [{
-                    label: 'Packets per Second',
-                    data: timelineData.values,
-                    fill: false,
-                    borderColor: 'rgb(75, 192, 192)',
-                    tension: 0.1
-                }]
-            },
-            options: {
-                responsive: true,
-                maintainAspectRatio: false,
-                scales: {
-                    y: {
-                        beginAtZero: true
+                    title: {
+                        display: true,
+                        text: 'Protocol Distribution'
                     }
                 }
             }
