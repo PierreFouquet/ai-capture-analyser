@@ -24,6 +24,7 @@ export class PCAPAnalyzerApp {
     initializeDOMElements() {
         this.pcapFile1 = document.getElementById('pcap-file-1');
         this.pcapFile2 = document.getElementById('pcap-file-2');
+        this.pcapFile3 = document.getElementById('pcap-file-3'); // Added to fix comparison logic
         this.llmModelSelect1 = document.getElementById('model-select-1');
         this.llmModelSelect2 = document.getElementById('model-select-2');
         this.startAnalysisBtn = document.getElementById('start-analysis-btn');
@@ -147,8 +148,8 @@ export class PCAPAnalyzerApp {
 
     // Handles the comparison button click
     async startComparison() {
-        const file1 = this.pcapFile1.files[0];
-        const file2 = this.pcapFile2.files[0];
+        const file1 = this.pcapFile2.files[0]; // Corrected to use pcap-file-2
+        const file2 = this.pcapFile3.files[0]; // Corrected to use pcap-file-3
         const llmModelKey = this.llmModelSelect2.value;
 
         if (!file1 || !file2) {
