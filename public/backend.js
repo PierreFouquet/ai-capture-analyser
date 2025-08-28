@@ -27,13 +27,15 @@ export class Backend {
         const base64PcapData = this.arrayBufferToBase64(arrayBuffer);
 
         try {
-            const response = await fetch('/api/analyze/process', {
+            // Use the correct API endpoint and pass the action as part of the body
+            const response = await fetch('/api/analyze', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Session-ID': this.sessionId
                 },
                 body: JSON.stringify({
+                    action: 'process',
                     pcap_data: base64PcapData,
                     file_name: file.name,
                     llm_model_key: llmModelKey,
@@ -41,8 +43,8 @@ export class Backend {
             });
 
             if (!response.ok) {
-                const errorResult = await response.json();
-                throw new Error(errorResult.error || `Server responded with status ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(errorText || `Server responded with status ${response.status}`);
             }
 
             // Start polling the status endpoint to get the final result
@@ -61,13 +63,15 @@ export class Backend {
         const base64PcapData2 = this.arrayBufferToBase64(arrayBuffer2);
         
         try {
-            const response = await fetch('/api/compare/process', {
+            // Use the correct API endpoint
+            const response = await fetch('/api/compare', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-Session-ID': this.sessionId
                 },
                 body: JSON.stringify({
+                    action: 'process',
                     pcap_data1: base64PcapData1,
                     file_name1: file1.name,
                     pcap_data2: base64PcapData2,
@@ -77,8 +81,8 @@ export class Backend {
             });
 
             if (!response.ok) {
-                const errorResult = await response.json();
-                throw new Error(errorResult.error || `Server responded with status ${response.status}`);
+                const errorText = await response.text();
+                throw new Error(errorText || `Server responded with status ${response.status}`);
             }
 
             // Start polling the status endpoint to get the final result
