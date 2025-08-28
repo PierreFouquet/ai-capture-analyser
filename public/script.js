@@ -1,5 +1,3 @@
-// public/script.js
-// Marked.js is no longer imported here as it's loaded as a global script in the HTML.
 import { llm_models, llm_settings, llm_prompts } from "./config.js";
 
 // Utility to handle form and report display

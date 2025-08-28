@@ -1,0 +1,124 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;700&display=swap');
+
+body {
+    font-family: 'Inter', sans-serif;
+}
+
+.message-box {
+    position: fixed;
+    top: 2rem;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 50;
+    transition: all 0.3s ease;
+}
+
+.fade-in {
+    animation: fadeIn 0.5s;
+}
+
+@keyframes fadeIn {
+    from { opacity: 0; }
+    to { opacity: 1; }
+}
+
+.progress-bar {
+    height: 4px;
+    width: 100%;
+    background-color: #e5e7eb;
+    overflow: hidden;
+}
+
+.progress-bar-value {
+    width: 100%;
+    height: 100%;
+    background-color: #3b82f6;
+    animation: indeterminate 1.5s infinite linear;
+    transform-origin: 0% 50%;
+}
+
+@keyframes indeterminate {
+    0% { transform: translateX(0) scaleX(0); }
+    40% { transform: translateX(0) scaleX(0.4); }
+    100% { transform: translateX(100%) scaleX(0.5); }
+}
+
+.report-section {
+    margin-bottom: 2rem;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    background-color: #f9fafb;
+    border-left: 4px solid #3b82f6;
+}
+
+.summary-card {
+    background-color: white;
+    padding: 1.5rem;
+    border-radius: 0.5rem;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    margin-bottom: 1.5rem;
+}
+
+.protocol-badge {
+    display: inline-block;
+    padding: 0.25rem 0.75rem;
+    border-radius: 9999px;
+    font-size: 0.875rem;
+    font-weight: 500;
+    margin-right: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.protocol-tcp { background-color: #dbeafe; color: #1e40af; }
+.protocol-udp { background-color: #e0e7ff; color: #3730a3; }
+.protocol-http { background-color: #fce7f3; color: #9d174d; }
+.protocol-dns { background-color: #dcfce7; color: #166534; }
+.protocol-ssl { background-color: #fef3c7; color: #92400e; }
+
+.chart-container {
+    position: relative;
+    height: 300px;
+    width: 100%;
+    margin-bottom: 2rem;
+}
+
+.packet-details {
+    font-family: monospace;
+    font-size: 0.875rem;
+    background-color: #f8fafc;
+    padding: 1rem;
+    border-radius: 0.5rem;
+    overflow-x: auto;
+    margin-bottom: 1rem;
+}
+
+.analysis-timeline {
+    border-left: 3px solid #3b82f6;
+    padding-left: 1.5rem;
+    margin-left: 0.5rem;
+}
+
+.timeline-event {
+    position: relative;
+    margin-bottom: 1.5rem;
+}
+
+.timeline-event:before {
+    content: '';
+    position: absolute;
+    left: -1.68rem;
+    top: 0.5rem;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: #3b82f6;
+}
+
+.export-btn {
+    transition: all 0.2s ease;
+}
+
+.export-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+}
