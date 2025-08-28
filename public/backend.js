@@ -42,16 +42,17 @@ export class Backend {
                 }),
             });
 
+            const responseData = await response.json();
+            
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || `Server responded with status ${response.status}`);
+                throw new Error(responseData.error || `Server responded with status ${response.status}`);
             }
 
             // Start polling the status endpoint to get the final result
             return this.pollStatus('/api/analyze/status');
         } catch (error) {
             console.error('API call failed:', error);
-            throw error;
+            throw new Error(`Analysis failed: ${error.message}`);
         }
     }
 
@@ -80,16 +81,17 @@ export class Backend {
                 }),
             });
 
+            const responseData = await response.json();
+            
             if (!response.ok) {
-                const errorText = await response.text();
-                throw new Error(errorText || `Server responded with status ${response.status}`);
+                throw new Error(responseData.error || `Server responded with status ${response.status}`);
             }
 
             // Start polling the status endpoint to get the final result
             return this.pollStatus('/api/analyze/status');
         } catch (error) {
             console.error('API call failed:', error);
-            throw error;
+            throw new Error(`Comparison failed: ${error.message}`);
         }
     }
 
@@ -101,6 +103,11 @@ export class Backend {
                     const statusResponse = await fetch(statusUrl, {
                         headers: { 'X-Session-ID': this.sessionId }
                     });
+                    
+                    if (!statusResponse.ok) {
+                        throw new Error(`Status check failed: ${statusResponse.status}`);
+                    }
+                    
                     const result = await statusResponse.json();
 
                     if (result.status === 'complete') {
@@ -110,6 +117,7 @@ export class Backend {
                         clearInterval(pollInterval);
                         reject(new Error(result.error || 'An unknown error occurred during analysis.'));
                     }
+                    // If status is 'processing', continue polling
                 } catch (error) {
                     clearInterval(pollInterval);
                     reject(error);

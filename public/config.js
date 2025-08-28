@@ -75,7 +75,7 @@ export const llm_prompts = {
     The user will provide a snippet of raw PCAP data.
     Your response must be a JSON object that adheres to the provided schema.
     ---
-    PCAP Snippet ({label}):
+    PCAP Snippet ({file_name}):
     {pcap_data_snippet}
     `,
     analysis_pcap_explanation_schema: {
@@ -120,8 +120,8 @@ export const llm_prompts = {
     {pcap_data_snippet1}
     ---
     PCAP 2 Snippet ({label2}):
-    {pcap_data_snippet2}`
-,
+    {pcap_data_snippet2}
+    `,
     comparison_pcap_explanation_schema: {
         type: "object",
         properties: {
@@ -158,3 +158,6 @@ export const llm_prompts = {
         required: ["overall_comparison_summary", "key_differences", "key_similarities", "security_implications", "important_timestamps_packets"]
     },
 };
+
+// Make the configuration available globally
+window.pcapAnalyzerConfig = { llm_models, llm_settings, llm_prompts };

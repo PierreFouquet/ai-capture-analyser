@@ -155,6 +155,9 @@ export class PCAPAnalyzerApp {
         this.messageText.textContent = message;
         this.messageBox.style.display = 'flex';
         this.messageBox.className = `message-box ${isError ? 'bg-red-500' : 'bg-green-500'}`;
+        
+        // Auto-hide after 5 seconds
+        setTimeout(() => this.hideMessage(), 5000);
     }
 
     hideMessage() {

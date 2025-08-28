@@ -48,7 +48,13 @@ export class AnalysisObject {
             this.status = 'error';
             this.error = e.message;
             await this.state.storage.put({ status: this.status, error: this.error, result: null });
-            return new Response(`An error occurred: ${e.message}`, { status: 500 });
+            return new Response(JSON.stringify({ 
+                status: this.status, 
+                error: this.error 
+            }), { 
+                status: 500,
+                headers: { 'Content-Type': 'application/json' }
+            });
         }
     }
 
@@ -104,7 +110,8 @@ export class AnalysisObject {
                 this.error = 'Invalid analysis type provided.';
                 await this.state.storage.put({ status: this.status, result: null, error: this.error });
                 return new Response(JSON.stringify({ status: this.status, error: this.error }), {
-                    headers: { 'Content-Type': 'application/json' }
+                    headers: { 'Content-Type': 'application/json' },
+                    status: 400
                 });
             }
             
@@ -114,7 +121,16 @@ export class AnalysisObject {
                 ...llm_settings,
             });
 
-            this.result = response;
+            // Parse the response from the AI model
+            let result;
+            try {
+                result = typeof response === 'string' ? JSON.parse(response) : response;
+            } catch (e) {
+                console.error("Failed to parse AI response:", response);
+                throw new Error("AI response was not valid JSON");
+            }
+
+            this.result = result;
             this.status = 'complete';
             await this.state.storage.put({ status: this.status, result: this.result, error: null });
 
@@ -127,7 +143,8 @@ export class AnalysisObject {
             this.error = `Analysis failed: ${e.message}`;
             await this.state.storage.put({ status: this.status, result: null, error: this.error });
             return new Response(JSON.stringify({ status: this.status, error: this.error }), {
-                headers: { 'Content-Type': 'application/json' }
+                headers: { 'Content-Type': 'application/json' },
+                status: 500
             });
         }
     }
@@ -153,13 +170,13 @@ export class AnalysisObject {
     // Helper to format the prompt based on the type, with JSON schema instructions
     private formatPrompt(type: 'analysis' | 'comparison', data: any): string {
         if (type === 'analysis') {
-            const schema = JSON.stringify(llm_prompts.analysis_pcap_schema, null, 2);
-            return `${llm_prompts.analysis_pcap_explanation_prompt
+            const schema = JSON.stringify(llm_prompts.analysis_pcap_explanation_schema, null, 2);
+            return `${llm_prompts.analysis_pcap_explanation_template
                 .replace('{pcap_data_snippet}', data.pcap_data_snippet)
                 .replace('{file_name}', data.file_name)}\n\nIMPORTANT: Respond with ONLY a single JSON object that strictly adheres to the following schema. DO NOT include any other text, explanations, or code block markers (like \`\`\`json\`\`\`): \n${schema}`;
         } else if (type === 'comparison') {
             const schema = JSON.stringify(llm_prompts.comparison_pcap_explanation_schema, null, 2);
-            return `${llm_prompts.comparison_pcap_explanation_prompt
+            return `${llm_prompts.comparison_pcap_explanation_template
                 .replace('{pcap_data_snippet1}', data.pcap_data_snippet1)
                 .replace('{pcap_data_snippet2}', data.pcap_data_snippet2)
                 .replace('{label1}', data.label1)
