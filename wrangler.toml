@@ -1,6 +1,7 @@
 name = "ai-capture-analyser"
 main = "src/index.ts"
 compatibility_date = "2025-08-26"
+compatibility_flags = [ "nodejs_compat" ]
 
 routes = [
   { pattern = "ai-capture-analyser.pierrefouquet.co.uk", custom_domain = true }
