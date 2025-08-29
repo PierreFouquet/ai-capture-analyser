@@ -7,138 +7,135 @@ export class ReportRenderer {
     }
 
     renderAnalysisReport(data, fileName) {
-        const html = `
-            <div class="report-section fade-in">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6">Analysis Report: ${fileName}</h2>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div class="summary-card">
-                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Summary</h3>
-                        <div class="flex flex-wrap mb-4">
-                            <div class="w-1/2 mb-2">
-                                <p class="text-sm text-gray-600">Total Packets</p>
-                                <p class="text-lg font-semibold">${data.packetCount.toLocaleString()}</p>
-                            </div>
-                            <div class="w-1/2 mb-2">
-                                <p class="text-sm text-gray-600">Duration</p>
-                                <p class="text-lg font-semibold">${data.duration} seconds</p>
-                            </div>
-                            <div class="w-full">
-                                <p class="text-sm text-gray-600">Overview</p>
-                                <p class="text-base text-gray-800">${marked.parse(data.summary)}</p>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="summary-card">
-                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Protocol Distribution</h3>
-                        <div class="chart-container">
-                            <canvas id="protocolChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="summary-card">
-                    <h3 class="text-xl font-semibold text-gray-700 mb-4">Timeline (Packets/Second)</h3>
-                    <div class="chart-container">
-                        <canvas id="timelineChart"></canvas>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="summary-card">
-                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Anomalies & Errors</h3>
-                        <ul class="list-disc list-inside pl-5">
-                            ${data.anomalies_and_errors && data.anomalies_and_errors.length > 0 ? 
-                                data.anomalies_and_errors.map(anomaly => `<li class="text-gray-600 mb-2">${anomaly}</li>`).join('') :
-                                '<li class="text-gray-600">No significant anomalies or errors found.</li>'
-                            }
-                        </ul>
-                    </div>
-                    <div class="summary-card">
-                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Details</h3>
-                        <p class="text-gray-600 mb-2"><strong>SIP/RTP:</strong> ${data.sip_rtp_info || 'N/A'}</p>
-                        <p class="text-gray-600"><strong>Important Timestamps:</strong> ${data.important_timestamps_packets || 'N/A'}</p>
-                    </div>
-                </div>
-            </div>
-        `;
-
-        // The postRender function will be executed after the HTML is injected into the DOM
-        const postRender = () => {
-            this.chartRenderer.createProtocolChart(data.protocolDistribution, 'protocolChart');
-            this.chartRenderer.createTimelineChart(data.timeline, 'timelineChart');
-        };
-
-        return { html, postRender };
-    }
-
-    renderComparisonReport(data, file1Name, file2Name) {
-        const html = `
-            <div class="report-section fade-in">
-                <h2 class="text-2xl font-bold text-gray-800 mb-6">Comparison Report: ${file1Name} vs ${file2Name}</h2>
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div class="summary-card">
-                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Summary</h3>
-                        <p class="text-gray-800">${data.overall_comparison_summary}</p>
-                    </div>
-                    <div class="summary-card">
-                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Protocol Distribution Comparison</h3>
-                        <div class="chart-container">
-                            <canvas id="comparisonChart"></canvas>
-                        </div>
-                    </div>
-                </div>
-                
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                    <div class="summary-card">
-                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Protocol Distribution - ${file1Name}</h3>
-                        <div class="chart-container">
-                            <canvas id="protocolChart1"></canvas>
-                        </div>
-                    </div>
-                    <div class="summary-card">
-                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Protocol Distribution - ${file2Name}</h3>
-                        <div class="chart-container">
-                            <canvas id="protocolChart2"></canvas>
-                        </div>
-                    </div>
-                </div>
-
-                <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                    <div class="summary-card">
-                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Key Differences</h3>
-                        <ul class="list-disc list-inside pl-5">
-                            ${data.key_differences && data.key_differences.length > 0 ? 
-                                data.key_differences.map(diff => `<li class="text-gray-600 mb-2">${diff}</li>`).join('') : 
-                                '<li class="text-gray-600">No significant differences found.</li>'
-                            }
-                        </ul>
-                    </div>
-                    <div class="summary-card">
-                        <h3 class="text-xl font-semibold text-gray-700 mb-4">Key Similarities</h3>
-                        <ul class="list-disc list-inside pl-5">
-                            ${data.key_similarities && data.key_similarities.length > 0 ? 
-                                data.key_similarities.map(sim => `<li class="text-gray-600 mb-2">${sim}</li>`).join('') : 
-                                '<li class="text-gray-600">No significant similarities found.</li>'
-                            }
-                        </ul>
-                    </div>
-                </div>
-            </div>
-        `;
+        // Defensive programming: ensure data exists and has expected structure
+        const safeData = data || {};
+        const protocolDistribution = safeData.protocol_distribution || {};
+        const anomalies = safeData.anomalies_and_errors || [];
+        const sipRtpInfo = safeData.sip_rtp_info || 'N/A';
+        const timestamps = safeData.important_timestamps_packets || 'N/A';
+        const summary = safeData.summary || 'No summary available.';
         
+        // Safely format numbers with fallbacks
+        const packetCount = safeData.packetCount ? safeData.packetCount.toLocaleString() : 'N/A';
+        const duration = safeData.duration ? `${safeData.duration}s` : 'N/A';
+
+        const html = `
+            <div class="report-analysis">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Analysis Report: ${fileName}</h3>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium text-gray-700 mb-2">Summary</h4>
+                        <p class="text-gray-600">${summary}</p>
+                    </div>
+                    
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium text-gray-700 mb-2">Key Statistics</h4>
+                        <ul class="text-gray-600">
+                            <li>Packet Count: ${packetCount}</li>
+                            <li>Duration: ${duration}</li>
+                            <li>SIP/RTP Info: ${sipRtpInfo}</li>
+                        </ul>
+                    </div>
+                </div>
+                
+                <div class="mb-6">
+                    <h4 class="font-medium text-gray-700 mb-2">Protocol Distribution</h4>
+                    <div class="h-64">
+                        <canvas id="protocol-chart"></canvas>
+                    </div>
+                </div>
+                
+                <div class="mb-6">
+                    <h4 class="font-medium text-gray-700 mb-2">Anomalies & Errors</h4>
+                    ${anomalies.length > 0 ? 
+                        `<ul class="list-disc list-inside text-gray-600">
+                            ${anomalies.map(anomaly => `<li>${anomaly}</li>`).join('')}
+                        </ul>` : 
+                        '<p class="text-gray-600">No anomalies detected.</p>'
+                    }
+                </div>
+                
+                <div class="mb-6">
+                    <h4 class="font-medium text-gray-700 mb-2">Important Timestamps/Packets</h4>
+                    <p class="text-gray-600">${timestamps}</p>
+                </div>
+            </div>
+        `;
+
         return {
             html,
             postRender: () => {
-                this.chartRenderer.createProtocolChart(data.file1.protocolDistribution, 'protocolChart1');
-                this.chartRenderer.createProtocolChart(data.file2.protocolDistribution, 'protocolChart2');
-                this.chartRenderer.createComparisonChart(
-                    data.file1.protocolDistribution, 
-                    data.file2.protocolDistribution, 
-                    'comparisonChart',
-                    file1Name,
-                    file2Name
-                );
+                // Only create chart if we have protocol data
+                if (Object.keys(protocolDistribution).length > 0) {
+                    this.chartRenderer.createProtocolChart(protocolDistribution, 'protocol-chart');
+                }
+            }
+        };
+    }
+
+    renderComparisonReport(data, file1Name, file2Name) {
+        // Defensive programming: ensure data exists and has expected structure
+        const safeData = data || {};
+        const keyDifferences = safeData.key_differences || [];
+        const keySimilarities = safeData.key_similarities || [];
+        const securityImplications = safeData.security_implications || [];
+        const timestamps = safeData.important_timestamps_packets || 'N/A';
+        const summary = safeData.overall_comparison_summary || 'No comparison summary available.';
+
+        const html = `
+            <div class="report-comparison">
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Comparison Report: ${file1Name} vs ${file2Name}</h3>
+                
+                <div class="mb-6">
+                    <h4 class="font-medium text-gray-700 mb-2">Overall Comparison Summary</h4>
+                    <p class="text-gray-600">${summary}</p>
+                </div>
+                
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium text-gray-700 mb-2">Key Differences</h4>
+                        ${keyDifferences.length > 0 ? 
+                            `<ul class="list-disc list-inside text-gray-600">
+                                ${keyDifferences.map(diff => `<li>${diff}</li>`).join('')}
+                            </ul>` : 
+                            '<p class="text-gray-600">No significant differences found.</p>'
+                        }
+                    </div>
+                    
+                    <div class="bg-gray-50 p-4 rounded-lg">
+                        <h4 class="font-medium text-gray-700 mb-2">Key Similarities</h4>
+                        ${keySimilarities.length > 0 ? 
+                            `<ul class="list-disc list-inside text-gray-600">
+                                ${keySimilarities.map(sim => `<li>${sim}</li>`).join('')}
+                            </ul>` : 
+                            '<p class="text-gray-600">No significant similarities found.</p>'
+                        }
+                    </div>
+                </div>
+                
+                <div class="mb-6">
+                    <h4 class="font-medium text-gray-700 mb-2">Security Implications</h4>
+                    ${securityImplications.length > 0 ? 
+                        `<ul class="list-disc list-inside text-gray-600">
+                            ${securityImplications.map(impl => `<li>${impl}</li>`).join('')}
+                        </ul>` : 
+                        '<p class="text-gray-600">No security implications identified.</p>'
+                    }
+                </div>
+                
+                <div class="mb-6">
+                    <h4 class="font-medium text-gray-700 mb-2">Important Timestamps/Packets</h4>
+                    <p class="text-gray-600">${timestamps}</p>
+                </div>
+            </div>
+        `;
+
+        return {
+            html,
+            postRender: () => {
+                // Comparison reports might not have protocol distribution charts
+                // Add any post-render logic needed for comparison reports here
             }
         };
     }
