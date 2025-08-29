@@ -115,11 +115,43 @@ export class AnalysisObject {
                 });
             }
             
-            // Call the AI model - Cloudflare AI expects an "input" property
-            const response = await this.env.AI.run(llm_model_key, {
-                input: promptToUse,  // Changed from "prompt" to "input"
-                ...llm_settings,
-            });
+            // Determine the appropriate input format based on the model
+            let aiRequest: any;
+            
+            // Check if the model is a GPT model (expects messages format)
+            if (llm_model_key.includes('gpt') || llm_model_key.includes('openai')) {
+                aiRequest = {
+                    messages: [
+                        {
+                            role: "user",
+                            content: promptToUse
+                        }
+                    ],
+                    ...llm_settings,
+                };
+            } 
+            // Check if the model is a chat model (expects messages format)
+            else if (llm_model_key.includes('chat') || llm_model_key.includes('instruct')) {
+                aiRequest = {
+                    messages: [
+                        {
+                            role: "user",
+                            content: promptToUse
+                        }
+                    ],
+                    ...llm_settings,
+                };
+            }
+            // For other models, use the prompt format
+            else {
+                aiRequest = {
+                    prompt: promptToUse,
+                    ...llm_settings,
+                };
+            }
+            
+            // Call the AI model with the appropriate format
+            const response = await this.env.AI.run(llm_model_key, aiRequest);
 
             // Parse the response from the AI model
             let result;
@@ -133,7 +165,17 @@ export class AnalysisObject {
                     result = JSON.parse(response.result);
                 } else if (response.choices && response.choices.length > 0) {
                     // Some models return choices array (like OpenAI-compatible models)
-                    result = JSON.parse(response.choices[0].message.content || response.choices[0].text);
+                    const choice = response.choices[0];
+                    if (choice.message && choice.message.content) {
+                        result = JSON.parse(choice.message.content);
+                    } else if (choice.text) {
+                        result = JSON.parse(choice.text);
+                    } else {
+                        result = response;
+                    }
+                } else if (response.message && response.message.content) {
+                    // Some models return a single message object
+                    result = JSON.parse(response.message.content);
                 } else {
                     result = response;
                 }
