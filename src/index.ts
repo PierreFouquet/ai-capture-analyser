@@ -195,56 +195,77 @@ export class AnalysisObject {
                 }
             }
 
+            // Check if response is empty or undefined
+            if (!response) {
+                throw new Error("AI returned an empty response");
+            }
+
             // Parse the response from the AI model
             let result;
             try {
                 // Cloudflare AI returns the response in different formats depending on the model
                 if (typeof response === 'string') {
-                    result = JSON.parse(response);
+                    // Try to parse as JSON first
+                    try {
+                        result = JSON.parse(response);
+                    } catch (e) {
+                        // If it's not JSON, try to extract JSON from the string
+                        const jsonMatch = response.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+                        if (jsonMatch) {
+                            result = JSON.parse(jsonMatch[0]);
+                        } else {
+                            // If no JSON found, use the raw response
+                            result = { raw_response: response };
+                        }
+                    }
                 } else if (response.response) {
-                    result = JSON.parse(response.response);
+                    result = typeof response.response === 'string' ? JSON.parse(response.response) : response.response;
                 } else if (response.result) {
-                    result = JSON.parse(response.result);
+                    result = typeof response.result === 'string' ? JSON.parse(response.result) : response.result;
                 } else if (response.choices && response.choices.length > 0) {
                     // Some models return choices array (like OpenAI-compatible models)
                     const choice = response.choices[0];
                     if (choice.message && choice.message.content) {
-                        result = JSON.parse(choice.message.content);
+                        try {
+                            result = JSON.parse(choice.message.content);
+                        } catch (e) {
+                            result = { raw_response: choice.message.content };
+                        }
                     } else if (choice.text) {
-                        result = JSON.parse(choice.text);
+                        try {
+                            result = JSON.parse(choice.text);
+                        } catch (e) {
+                            result = { raw_response: choice.text };
+                        }
                     } else {
                         result = response;
                     }
                 } else if (response.message && response.message.content) {
                     // Some models return a single message object
-                    result = JSON.parse(response.message.content);
+                    try {
+                        result = JSON.parse(response.message.content);
+                    } catch (e) {
+                        result = { raw_response: response.message.content };
+                    }
                 } else {
                     // If all else fails, try to stringify and parse
                     try {
-                        result = JSON.parse(JSON.stringify(response));
+                        const responseString = JSON.stringify(response);
+                        result = JSON.parse(responseString);
                     } catch (e) {
                         console.error("Failed to parse AI response as JSON:", response);
-                        throw new Error("AI response was not valid JSON and couldn't be converted");
+                        result = { raw_response: response };
                     }
                 }
             } catch (e) {
                 console.error("Failed to parse AI response:", response);
-                // Try to extract any JSON from the response if it's a string
-                if (typeof response === 'string') {
-                    try {
-                        // Try to find JSON in the response
-                        const jsonMatch = response.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-                        if (jsonMatch) {
-                            result = JSON.parse(jsonMatch[0]);
-                        } else {
-                            throw new Error("No JSON found in AI response");
-                        }
-                    } catch (parseError) {
-                        throw new Error(`AI response was not valid JSON: ${response.substring(0, 200)}...`);
-                    }
-                } else {
-                    throw new Error("AI response was not valid JSON and not a string");
-                }
+                // If parsing fails, return the raw response for debugging
+                result = { raw_response: response, error: "Failed to parse response as JSON" };
+            }
+
+            // Validate that we have a proper result
+            if (!result || (typeof result === 'object' && Object.keys(result).length === 0)) {
+                throw new Error("AI returned an empty or invalid result");
             }
 
             this.result = result;
