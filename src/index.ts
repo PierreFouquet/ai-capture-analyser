@@ -115,23 +115,25 @@ export class AnalysisObject {
                 });
             }
             
-            // Call the AI model - Cloudflare AI expects an "input" property, not "prompt"
+            // Call the AI model - Cloudflare AI expects a "prompt" property for text generation models
             const response = await this.env.AI.run(llm_model_key, {
-                input: promptToUse,  // Changed from "prompt" to "input"
+                prompt: promptToUse,  // Changed from "input" to "prompt"
                 ...llm_settings,
             });
 
             // Parse the response from the AI model
             let result;
             try {
-                // Cloudflare AI returns the response in a different format
-                // Try to extract the response text from various possible structures
+                // Cloudflare AI returns the response in different formats depending on the model
                 if (typeof response === 'string') {
                     result = JSON.parse(response);
                 } else if (response.response) {
                     result = JSON.parse(response.response);
                 } else if (response.result) {
                     result = JSON.parse(response.result);
+                } else if (response.choices && response.choices.length > 0) {
+                    // Some models return choices array (like OpenAI-compatible models)
+                    result = JSON.parse(response.choices[0].message.content || response.choices[0].text);
                 } else {
                     result = response;
                 }
