@@ -63,8 +63,8 @@ export const llm_models = {
 
 // llm_settings: Global LLM settings
 export const llm_settings = {
-    default_llm_model_analysis: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
-    default_llm_model_comparison: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
+    // Cloudflare AI settings - these vary by model
+    // For text generation models, we typically don't need additional settings
 };
 
 // llm_prompts: Prompt templates and JSON schemas for LLM interactions.

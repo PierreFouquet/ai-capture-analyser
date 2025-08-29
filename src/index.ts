@@ -1,4 +1,4 @@
-import { llm_settings, llm_prompts } from './config.ts';
+import { llm_settings, llm_prompts } from './config';
 
 // The Durable Object that will handle the analysis state.
 export interface AnalysisObjectState {
@@ -115,16 +115,26 @@ export class AnalysisObject {
                 });
             }
             
-            // Call the AI model without a separate prompt_schema parameter
+            // Call the AI model - Cloudflare AI expects an "input" property, not "prompt"
             const response = await this.env.AI.run(llm_model_key, {
-                prompt: promptToUse,
+                input: promptToUse,  // Changed from "prompt" to "input"
                 ...llm_settings,
             });
 
             // Parse the response from the AI model
             let result;
             try {
-                result = typeof response === 'string' ? JSON.parse(response) : response;
+                // Cloudflare AI returns the response in a different format
+                // Try to extract the response text from various possible structures
+                if (typeof response === 'string') {
+                    result = JSON.parse(response);
+                } else if (response.response) {
+                    result = JSON.parse(response.response);
+                } else if (response.result) {
+                    result = JSON.parse(response.result);
+                } else {
+                    result = response;
+                }
             } catch (e) {
                 console.error("Failed to parse AI response:", response);
                 throw new Error("AI response was not valid JSON");
