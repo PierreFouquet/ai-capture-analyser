@@ -1,292 +1,146 @@
-import { llm_settings, llm_prompts } from './config';
-
-// The Durable Object that will handle the analysis state.
-export interface AnalysisObjectState {
-    status: 'idle' | 'processing' | 'complete' | 'error';
-    result: any;
-    error?: string;
-}
-
-export class AnalysisObject {
-    private state: DurableObjectState;
-    private env: Env;
-    private status: 'idle' | 'processing' | 'complete' | 'error';
-    private result: any;
-    private error: string | null = null;
-
-    constructor(state: DurableObjectState, env: Env) {
-        this.state = state;
-        this.env = env;
-        this.status = 'idle';
-        this.result = {};
-
-        // Load status from storage
-        this.state.storage.get<AnalysisObjectState>('analysisState')
-            .then(s => {
-                if (s) {
-                    this.status = s.status;
-                    this.result = s.result;
-                    this.error = s.error || null;
-                }
-            });
+// This file handles all communication with the backend API
+export class Backend {
+    constructor() {
+        this.sessionId = this.generateSessionId();
     }
 
-    // Handle requests to the Durable Object
-    async fetch(request: Request): Promise<Response> {
-        const url = new URL(request.url);
-        const path = url.pathname;
+    generateSessionId() {
+        // Generate a unique session ID to keep track of analysis requests
+        return 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
+    }
+
+    // Function to convert an ArrayBuffer to a Base64 string in chunks
+    arrayBufferToBase64(buffer) {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
+    }
+
+    async analyzePcap(file, llmModelKey) {
+        // Read the file as an ArrayBuffer
+        const arrayBuffer = await file.arrayBuffer();
+        // Convert the ArrayBuffer to a Base64 string for transmission
+        const base64PcapData = this.arrayBufferToBase64(arrayBuffer);
 
         try {
-            if (path.endsWith("/status")) {
-                return this.handleStatusRequest();
-            } else if (path.endsWith("/analyze")) {
-                return await this.handleProcessRequest(request);
-            } else {
-                return new Response("Not Found", { status: 404 });
-            }
-        } catch (e: any) {
-            this.status = 'error';
-            this.error = e.message;
-            await this.state.storage.put({ status: this.status, error: this.error, result: null });
-            return new Response(JSON.stringify({ 
-                status: this.status, 
-                error: this.error 
-            }), { 
-                status: 500,
-                headers: { 'Content-Type': 'application/json' }
+            // Use the single, unified API endpoint
+            const response = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Session-ID': this.sessionId
+                },
+                body: JSON.stringify({
+                    type: 'analysis',
+                    pcap_data: base64PcapData,
+                    file_name: file.name,
+                    llm_model_key: llmModelKey,
+                }),
             });
+
+            const responseData = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(responseData.error || `Server responded with status ${response.status}`);
+            }
+
+            // Start polling the status endpoint to get the final result
+            return this.pollStatus('/api/analyze/status');
+        } catch (error) {
+            console.error('API call failed:', error);
+            throw new Error(`Analysis failed: ${error.message}`);
         }
     }
 
-    private handleStatusRequest(): Response {
-        return new Response(JSON.stringify({
-            status: this.status,
-            result: this.result,
-            error: this.error,
-        }), {
-            headers: { 'Content-Type': 'application/json' }
+    async comparePcaps(file1, file2, llmModelKey) {
+        const arrayBuffer1 = await file1.arrayBuffer();
+        const base64PcapData1 = this.arrayBufferToBase64(arrayBuffer1);
+
+        const arrayBuffer2 = await file2.arrayBuffer();
+        const base64PcapData2 = this.arrayBufferToBase64(arrayBuffer2);
+        
+        try {
+            // Use the single, unified API endpoint
+            const response = await fetch('/api/analyze', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-Session-ID': this.sessionId
+                },
+                body: JSON.stringify({
+                    type: 'comparison',
+                    pcap_data1: base64PcapData1,
+                    file_name1: file1.name,
+                    pcap_data2: base64PcapData2,
+                    file_name2: file2.name,
+                    llm_model_key: llmModelKey,
+                }),
+            });
+
+            const responseData = await response.json();
+            
+            if (!response.ok) {
+                throw new Error(responseData.error || `Server responded with status ${response.status}`);
+            }
+
+            // Start polling the status endpoint to get the final result
+            return this.pollStatus('/api/analyze/status');
+        } catch (error) {
+            console.error('API call failed:', error);
+            throw new Error(`Comparison failed: ${error.message}`);
+        }
+    }
+
+    // Function to poll the status of the analysis job
+    pollStatus(statusUrl) {
+        return new Promise((resolve, reject) => {
+            const pollInterval = setInterval(async () => {
+                try {
+                    const statusResponse = await fetch(statusUrl, {
+                        headers: { 'X-Session-ID': this.sessionId }
+                    });
+                    
+                    if (!statusResponse.ok) {
+                        throw new Error(`Status check failed: ${statusResponse.status}`);
+                    }
+                    
+                    const result = await statusResponse.json();
+
+                    if (result.status === 'complete') {
+                        clearInterval(pollInterval);
+                        resolve(result.result);
+                    } else if (result.status === 'error') {
+                        clearInterval(pollInterval);
+                        reject(new Error(result.error || 'An unknown error occurred during analysis.'));
+                    }
+                    // If status is 'processing', continue polling
+                } catch (error) {
+                    clearInterval(pollInterval);
+                    reject(error);
+                }
+            }, 1000); // Poll every 1 second
         });
     }
 
-    private async handleProcessRequest(request: Request): Promise<Response> {
-        this.status = 'processing';
-        this.result = null;
-        this.error = null;
-        await this.state.storage.put({ status: this.status, result: null, error: null });
-
+    // Debug function to check the environment
+    async debug() {
         try {
-            const requestBody = await request.json();
-            const { type, llm_model_key } = requestBody;
-
-            let promptToUse;
-            if (type === 'analysis') {
-                const { pcap_data, file_name } = requestBody;
-                const decodedData = this.b64ToArrayBuffer(pcap_data);
-                const pcapSnippet = this.extractPcapSnippet(decodedData, 2048);
-
-                // Format the prompt with the JSON schema embedded
-                promptToUse = this.formatPrompt('analysis', {
-                    pcap_data_snippet: pcapSnippet,
-                    file_name: file_name,
-                });
-
-            } else if (type === 'comparison') {
-                const { pcap_data1, pcap_data2, file_name1, file_name2 } = requestBody;
-                
-                const decodedData1 = this.b64ToArrayBuffer(pcap_data1);
-                const pcapSnippet1 = this.extractPcapSnippet(decodedData1, 2048);
-                const decodedData2 = this.b64ToArrayBuffer(pcap_data2);
-                const pcapSnippet2 = this.extractPcapSnippet(decodedData2, 2048);
-    
-                // Format the prompt with the JSON schema embedded
-                promptToUse = this.formatPrompt('comparison', {
-                    pcap_data_snippet1: pcapSnippet1,
-                    pcap_data_snippet2: pcapSnippet2,
-                    label1: file_name1,
-                    label2: file_name2,
-                });
-            } else {
-                this.status = 'error';
-                this.error = 'Invalid analysis type provided.';
-                await this.state.storage.put({ status: this.status, result: null, error: this.error });
-                return new Response(JSON.stringify({ status: this.status, error: this.error }), {
-                    headers: { 'Content-Type': 'application/json' },
-                    status: 400
-                });
-            }
-            
-            // Determine the appropriate input format based on the model
-            let aiRequest: any;
-            
-            // Models that require 'input' format
-            if (llm_model_key.includes('deepseek') || 
-                llm_model_key.includes('llama') || 
-                llm_model_key.includes('mistral') ||
-                llm_model_key.includes('phi') ||
-                llm_model_key.includes('gemma') ||
-                llm_model_key.includes('qwen') ||
-                llm_model_key.includes('falcon')) {
-                aiRequest = {
-                    input: promptToUse,
-                    ...llm_settings,
-                };
-            } 
-            // Models that require 'messages' format (OpenAI-compatible)
-            else if (llm_model_key.includes('gpt') || llm_model_key.includes('openai')) {
-                aiRequest = {
-                    messages: [
-                        {
-                            role: "user",
-                            content: promptToUse
-                        }
-                    ],
-                    ...llm_settings,
-                };
-            }
-            // Default to 'prompt' format for other models
-            else {
-                aiRequest = {
-                    prompt: promptToUse,
-                    ...llm_settings,
-                };
-            }
-            
-            // Call the AI model with the appropriate format
-            const response = await this.env.AI.run(llm_model_key, aiRequest);
-
-            // Parse the response from the AI model
-            let result;
-            try {
-                // Cloudflare AI returns the response in different formats depending on the model
-                if (typeof response === 'string') {
-                    result = JSON.parse(response);
-                } else if (response.response) {
-                    result = JSON.parse(response.response);
-                } else if (response.result) {
-                    result = JSON.parse(response.result);
-                } else if (response.choices && response.choices.length > 0) {
-                    // Some models return choices array (like OpenAI-compatible models)
-                    const choice = response.choices[0];
-                    if (choice.message && choice.message.content) {
-                        result = JSON.parse(choice.message.content);
-                    } else if (choice.text) {
-                        result = JSON.parse(choice.text);
-                    } else {
-                        result = response;
-                    }
-                } else if (response.message && response.message.content) {
-                    // Some models return a single message object
-                    result = JSON.parse(response.message.content);
-                } else {
-                    // If all else fails, try to stringify and parse
-                    try {
-                        result = JSON.parse(JSON.stringify(response));
-                    } catch (e) {
-                        console.error("Failed to parse AI response as JSON:", response);
-                        throw new Error("AI response was not valid JSON and couldn't be converted");
-                    }
-                }
-            } catch (e) {
-                console.error("Failed to parse AI response:", response);
-                // Try to extract any JSON from the response if it's a string
-                if (typeof response === 'string') {
-                    try {
-                        // Try to find JSON in the response
-                        const jsonMatch = response.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
-                        if (jsonMatch) {
-                            result = JSON.parse(jsonMatch[0]);
-                        } else {
-                            throw new Error("No JSON found in AI response");
-                        }
-                    } catch (parseError) {
-                        throw new Error(`AI response was not valid JSON: ${response.substring(0, 200)}...`);
-                    }
-                } else {
-                    throw new Error("AI response was not valid JSON and not a string");
-                }
-            }
-
-            this.result = result;
-            this.status = 'complete';
-            await this.state.storage.put({ status: this.status, result: this.result, error: null });
-
-            return new Response(JSON.stringify({ status: this.status, result: this.result }), {
-                headers: { 'Content-Type': 'application/json' }
+            const response = await fetch('/api/debug', {
+                headers: { 'X-Session-ID': this.sessionId }
             });
-
-        } catch (e: any) {
-            this.status = 'error';
-            this.error = `Analysis failed: ${e.message}`;
-            await this.state.storage.put({ status: this.status, result: null, error: this.error });
-            return new Response(JSON.stringify({ status: this.status, error: this.error }), {
-                headers: { 'Content-Type': 'application/json' },
-                status: 500
-            });
+            
+            if (!response.ok) {
+                throw new Error(`Debug check failed: ${response.status}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Debug failed:', error);
+            throw error;
         }
     }
-
-    // Helper function to decode Base64 string to ArrayBuffer
-    private b64ToArrayBuffer(base64: string): ArrayBuffer {
-        const binaryString = atob(base64);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-            bytes[i] = binaryString.charCodeAt(i);
-        }
-        return bytes.buffer;
-    }
-
-    // Helper to extract a small snippet from the data
-    private extractPcapSnippet(buffer: ArrayBuffer, size: number): string {
-        const bytes = new Uint8Array(buffer);
-        const snippet = bytes.slice(0, size);
-        return Array.from(snippet).map(byte => byte.toString(16).padStart(2, '0')).join('');
-    }
-
-    // Helper to format the prompt based on the type, with JSON schema instructions
-    private formatPrompt(type: 'analysis' | 'comparison', data: any): string {
-        if (type === 'analysis') {
-            const schema = JSON.stringify(llm_prompts.analysis_pcap_explanation_schema, null, 2);
-            return `${llm_prompts.analysis_pcap_explanation_template
-                .replace('{pcap_data_snippet}', data.pcap_data_snippet)
-                .replace('{file_name}', data.file_name)}\n\nIMPORTANT: Respond with ONLY a single JSON object that strictly adheres to the following schema. DO NOT include any other text, explanations, or code block markers (like \`\`\`json\`\`\`): \n${schema}`;
-        } else if (type === 'comparison') {
-            const schema = JSON.stringify(llm_prompts.comparison_pcap_explanation_schema, null, 2);
-            return `${llm_prompts.comparison_pcap_explanation_template
-                .replace('{pcap_data_snippet1}', data.pcap_data_snippet1)
-                .replace('{pcap_data_snippet2}', data.pcap_data_snippet2)
-                .replace('{label1}', data.label1)
-                .replace('{label2}', data.label2)}\n\nIMPORTANT: Respond with ONLY a single JSON object that strictly adheres to the following schema. DO NOT include any other text, explanations, or code block markers (like \`\`\`json\`\`\`): \n${schema}`;
-        }
-        return '';
-    }
-}
-
-// The main Worker script.
-export default {
-    async fetch(request: Request, env: Env): Promise<Response> {
-        const url = new URL(request.url);
-
-        // API endpoint for Durable Object
-        if (url.pathname.startsWith("/api/analyze")) {
-            // Get or create a Durable Object for this session
-            const sessionId = request.headers.get("X-Session-ID") || "default";
-            const id = env.ANALYSIS_OBJECT.idFromName(sessionId);
-            const stub = env.ANALYSIS_OBJECT.get(id);
-
-            // Fetch the response from the Durable Object
-            return stub.fetch(request);
-        }
-
-        // Serve all other requests from the ASSETS binding
-        return env.ASSETS.fetch(request);
-    }
-};
-
-// Environment interface
-interface Env {
-    ANALYSIS_OBJECT: DurableObjectNamespace;
-    ASSETS: Fetcher;
-    AI: any; // Cloudflare AI binding
-    config: any; // Configuration object
 }
