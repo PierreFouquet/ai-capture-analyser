@@ -118,20 +118,21 @@ export class AnalysisObject {
             // Determine the appropriate input format based on the model
             let aiRequest: any;
             
-            // Check if the model is a GPT model (expects messages format)
-            if (llm_model_key.includes('gpt') || llm_model_key.includes('openai')) {
+            // Models that require 'input' format
+            if (llm_model_key.includes('deepseek') || 
+                llm_model_key.includes('llama') || 
+                llm_model_key.includes('mistral') ||
+                llm_model_key.includes('phi') ||
+                llm_model_key.includes('gemma') ||
+                llm_model_key.includes('qwen') ||
+                llm_model_key.includes('falcon')) {
                 aiRequest = {
-                    messages: [
-                        {
-                            role: "user",
-                            content: promptToUse
-                        }
-                    ],
+                    input: promptToUse,
                     ...llm_settings,
                 };
             } 
-            // Check if the model is a chat model (expects messages format)
-            else if (llm_model_key.includes('chat') || llm_model_key.includes('instruct')) {
+            // Models that require 'messages' format (OpenAI-compatible)
+            else if (llm_model_key.includes('gpt') || llm_model_key.includes('openai')) {
                 aiRequest = {
                     messages: [
                         {
@@ -142,7 +143,7 @@ export class AnalysisObject {
                     ...llm_settings,
                 };
             }
-            // For other models, use the prompt format
+            // Default to 'prompt' format for other models
             else {
                 aiRequest = {
                     prompt: promptToUse,
@@ -177,11 +178,32 @@ export class AnalysisObject {
                     // Some models return a single message object
                     result = JSON.parse(response.message.content);
                 } else {
-                    result = response;
+                    // If all else fails, try to stringify and parse
+                    try {
+                        result = JSON.parse(JSON.stringify(response));
+                    } catch (e) {
+                        console.error("Failed to parse AI response as JSON:", response);
+                        throw new Error("AI response was not valid JSON and couldn't be converted");
+                    }
                 }
             } catch (e) {
                 console.error("Failed to parse AI response:", response);
-                throw new Error("AI response was not valid JSON");
+                // Try to extract any JSON from the response if it's a string
+                if (typeof response === 'string') {
+                    try {
+                        // Try to find JSON in the response
+                        const jsonMatch = response.match(/\{[\s\S]*\}|\[[\s\S]*\]/);
+                        if (jsonMatch) {
+                            result = JSON.parse(jsonMatch[0]);
+                        } else {
+                            throw new Error("No JSON found in AI response");
+                        }
+                    } catch (parseError) {
+                        throw new Error(`AI response was not valid JSON: ${response.substring(0, 200)}...`);
+                    }
+                } else {
+                    throw new Error("AI response was not valid JSON and not a string");
+                }
             }
 
             this.result = result;
