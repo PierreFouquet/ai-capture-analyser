@@ -1,7 +1,7 @@
-// This file contains the configuration for the frontend application.
+// This file contains the configuration for the application.
 
 // llm_models: A list of available LLM models.
-const llm_models = {
+export const llm_models = {
     // Cloudflare Workers AI Models
     "@cf/openai/gpt-oss-120b": {
         name: "GPT OSS 120b",
@@ -62,13 +62,13 @@ const llm_models = {
 };
 
 // llm_settings: Global LLM settings
-const llm_settings = {
+export const llm_settings = {
     default_llm_model_analysis: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
     default_llm_model_comparison: "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b",
 };
 
 // llm_prompts: Prompt templates and JSON schemas for LLM interactions.
-const llm_prompts = {
+export const llm_prompts = {
     analysis_pcap_explanation_template: `
     You are an expert SIP and RTP packet analyst. Your task is to analyze a raw PCAP file snippet and provide a detailed report.
     The user will provide a snippet of raw PCAP data.
@@ -157,8 +157,3 @@ const llm_prompts = {
         required: ["overall_comparison_summary", "key_differences", "key_similarities", "security_implications", "important_timestamps_packets"]
     },
 };
-
-// Make the configuration available globally for the frontend
-if (typeof window !== 'undefined') {
-    window.pcapAnalyzerConfig = { llm_models, llm_settings, llm_prompts };
-}
