@@ -125,4 +125,22 @@ export class Backend {
             }, 1000); // Poll every 1 second
         });
     }
+
+    // Debug function to check the environment
+    async debug() {
+        try {
+            const response = await fetch('/api/debug', {
+                headers: { 'X-Session-ID': this.sessionId }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Debug check failed: ${response.status}`);
+            }
+            
+            return await response.json();
+        } catch (error) {
+            console.error('Debug failed:', error);
+            throw error;
+        }
+    }
 }
