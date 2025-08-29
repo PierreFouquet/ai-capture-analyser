@@ -115,9 +115,9 @@ export class AnalysisObject {
                 });
             }
             
-            // Call the AI model - Cloudflare AI expects a "prompt" property for text generation models
+            // Call the AI model - Cloudflare AI expects an "input" property
             const response = await this.env.AI.run(llm_model_key, {
-                prompt: promptToUse,  // Changed from "input" to "prompt"
+                input: promptToUse,  // Changed from "prompt" to "input"
                 ...llm_settings,
             });
 
