@@ -103,8 +103,7 @@ export class AnalysisObject {
         try {
             const requestBody = await request.json();
 
-            // 🚀 FIX 1: Run AI in the background. DO NOT await it here.
-            // This prevents the connection from timing out and allows your frontend to start polling immediately.
+            // Run AI in the background. DO NOT await it here.
             this.state.waitUntil(this.executeAIAnalysis(requestBody));
 
             return new Response(JSON.stringify({ status: 'processing' }), {
@@ -123,7 +122,7 @@ export class AnalysisObject {
         }
     }
 
-    // 🚀 Background Worker Logic
+    // Background Worker Logic
     private async executeAIAnalysis(requestBody: any) {
         try {
             const { type, llm_model_key } = requestBody;
@@ -175,11 +174,11 @@ export class AnalysisObject {
                 }
             }
 
-if (!response) throw new Error("AI returned an empty response");
+            if (!response) throw new Error("AI returned an empty response");
 
             let rawResponseStr = "";
             
-            // 1. Safely extract the string from whatever shape Cloudflare returned
+            // Safely extract the string from whatever shape Cloudflare returned
             if (typeof response === 'string') {
                 rawResponseStr = response;
             } else {
@@ -197,16 +196,15 @@ if (!response) throw new Error("AI returned an empty response");
                 }
             }
 
-            // 2. Ironclad guarantee that rawResponseStr is a string before calling .match()
+            // Ironclad guarantee that rawResponseStr is a string before calling .match()
             if (typeof rawResponseStr !== 'string') {
                 rawResponseStr = String(rawResponseStr);
             }
             
-            // 3. Extract just the JSON object from the AI's response
+            // Extract just the JSON object from the AI's response
             const jsonMatch = rawResponseStr.match(/\{[\s\S]*\}/);
             
             if (!jsonMatch) {
-                // If it completely failed, log exactly what the AI returned so we can see it
                 console.error("Failed to find JSON in AI response. Raw string was:", rawResponseStr);
                 throw new Error("No JSON object could be extracted. The AI returned: " + rawResponseStr.substring(0, 100) + "...");
             }
@@ -216,6 +214,12 @@ if (!response) throw new Error("AI returned an empty response");
             this.result = result;
             this.status = 'complete';
             await this.state.storage.put({ status: this.status, result: this.result, error: null });
+
+        } catch (e: any) {
+            console.error("AI Analysis execution failed:", e);
+            this.status = 'error';
+            this.error = `Analysis failed: ${e.message}`;
+            await this.state.storage.put({ status: this.status, result: null, error: this.error });
         }
     }
 
