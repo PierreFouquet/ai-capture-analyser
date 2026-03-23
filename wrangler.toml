@@ -1,6 +1,6 @@
 name = "ai-capture-analyser"
 main = "src/index.ts"
-compatibility_date = "2025-09-08"
+compatibility_date = "2026-03-23"
 compatibility_flags = [ "nodejs_compat" ]
 
 routes = [
