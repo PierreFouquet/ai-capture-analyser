@@ -108,7 +108,7 @@ export class AnalysisObject {
 
             return new Response(JSON.stringify({ status: 'processing' }), {
                 headers: { 'Content-Type': 'application/json' },
-                status: 202 // HTTP 202 Accepted (Processing started)
+                status: 202 
             });
 
         } catch (e: any) {
@@ -155,18 +155,19 @@ export class AnalysisObject {
             try {
                 response = await this.env.AI.run(llm_model_key, {
                     messages: [
-                        { role: "system", content: "You are an expert network analyst. Return ONLY raw JSON matching the requested schema." },
+                        { role: "system", content: "You are an expert network analyst. Return ONLY raw JSON matching the requested schema. Do NOT wrap it in markdown." },
                         { role: "user", content: promptToUse }
-                    ]
+                    ],
+                    max_tokens: 3000 // Expanded to allow deep reasoning models to finish
                 });
             } catch (messagesError) {
                 lastError = messagesError;
                 try {
-                    response = await this.env.AI.run(llm_model_key, { prompt: promptToUse });
+                    response = await this.env.AI.run(llm_model_key, { prompt: promptToUse, max_tokens: 3000 });
                 } catch (promptError) {
                     lastError = promptError;
                     try {
-                        response = await this.env.AI.run(llm_model_key, { input: promptToUse });
+                        response = await this.env.AI.run(llm_model_key, { input: promptToUse, max_tokens: 3000 });
                     } catch (inputError) {
                         lastError = inputError;
                         throw new Error(`All AI execution formats failed. Last error: ${lastError.message}`);
@@ -178,7 +179,6 @@ export class AnalysisObject {
 
             let rawResponseStr = "";
             
-            // Safely extract the string from whatever shape Cloudflare returned
             if (typeof response === 'string') {
                 rawResponseStr = response;
             } else {
@@ -191,18 +191,23 @@ export class AnalysisObject {
                 } else if (response.choices && response.choices.length > 0 && response.choices[0].message) {
                     rawResponseStr = String(response.choices[0].message.content);
                 } else {
-                    // Absolute fallback: if it's a deeply nested object we didn't expect, stringify it
                     rawResponseStr = JSON.stringify(response);
                 }
             }
 
-            // Ironclad guarantee that rawResponseStr is a string before calling .match()
             if (typeof rawResponseStr !== 'string') {
                 rawResponseStr = String(rawResponseStr);
             }
+
+            // Strip DeepSeek <think> blocks
+            let stringToParse = rawResponseStr;
+            if (stringToParse.includes('</think>')) {
+                stringToParse = stringToParse.split('</think>')[1];
+            } else if (stringToParse.includes('<think>')) {
+                throw new Error("The AI model took too long to 'think' and hit Cloudflare's limit before generating the report. Try Llama 3.1 instead.");
+            }
             
-            // Extract just the JSON object from the AI's response
-            const jsonMatch = rawResponseStr.match(/\{[\s\S]*\}/);
+            const jsonMatch = stringToParse.match(/\{[\s\S]*\}/);
             
             if (!jsonMatch) {
                 console.error("Failed to find JSON in AI response. Raw string was:", rawResponseStr);

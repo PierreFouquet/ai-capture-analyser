@@ -2,31 +2,19 @@
 
 // llm_models: A list of available LLM models.
 export const llm_models = {
-    // Top Tier Reasoning & Analysis
-    "@cf/meta/llama-3.3-70b-instruct-fp8-fast": {
-        name: "Meta Llama 3.3 (70B) - Highly Recommended",
-        provider: "Cloudflare"
-    },
-    "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {
-        name: "DeepSeek R1 Distill Qwen 32B",
-        provider: "Cloudflare"
-    },
-    // Fast & Efficient 
-    "@cf/meta/llama-3.1-8b-instruct": {
+    // Fast & Reliable
+    "@cf/meta/llama-3.1-8b-instruct-fast": {
         name: "Meta Llama 3.1 (8B)",
         provider: "Cloudflare"
     },
-    "@cf/google/gemma-2-9b-it": {
-        name: "Google Gemma 2 (9B)",
+    // Top Tier Reasoning & Analysis
+    "@cf/meta/llama-3.3-70b-instruct-fp8-fast": {
+        name: "Meta Llama 3.3 (70B) - Deep Analysis",
         provider: "Cloudflare"
     },
-    // Legacy / Specialized
-    "@cf/qwen/qwen1.5-14b-chat-awq": {
-        name: "Qwen 1.5 (14B)",
-        provider: "Cloudflare"
-    },
-    "@cf/mistral/mistral-7b-instruct-v0.2": {
-        name: "Mistral 7b Instruct",
+    // Deep Reasoning
+    "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {
+        name: "DeepSeek R1 (32B) - Reasoning Model",
         provider: "Cloudflare"
     }
 };
@@ -34,7 +22,6 @@ export const llm_models = {
 // llm_settings: Global LLM settings
 export const llm_settings = {
     // Cloudflare AI settings - these vary by model
-    // For text generation models, we typically don't need additional settings
 };
 
 // llm_prompts: Prompt templates and JSON schemas for LLM interactions.
