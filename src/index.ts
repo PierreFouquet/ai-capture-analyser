@@ -175,22 +175,40 @@ export class AnalysisObject {
                 }
             }
 
-            if (!response) throw new Error("AI returned an empty response");
+if (!response) throw new Error("AI returned an empty response");
 
             let rawResponseStr = "";
-            if (typeof response === 'string') rawResponseStr = response;
-            else if (response.response) rawResponseStr = response.response;
-            else if (response.result) rawResponseStr = response.result;
-            else if (response.choices && response.choices.length > 0 && response.choices[0].message) {
-                rawResponseStr = response.choices[0].message.content;
+            
+            // 1. Safely extract the string from whatever shape Cloudflare returned
+            if (typeof response === 'string') {
+                rawResponseStr = response;
+            } else {
+                if (response.response && typeof response.response === 'string') {
+                    rawResponseStr = response.response;
+                } else if (response.result && typeof response.result === 'string') {
+                    rawResponseStr = response.result;
+                } else if (response.result && response.result.response && typeof response.result.response === 'string') {
+                    rawResponseStr = response.result.response;
+                } else if (response.choices && response.choices.length > 0 && response.choices[0].message) {
+                    rawResponseStr = String(response.choices[0].message.content);
+                } else {
+                    // Absolute fallback: if it's a deeply nested object we didn't expect, stringify it
+                    rawResponseStr = JSON.stringify(response);
+                }
+            }
+
+            // 2. Ironclad guarantee that rawResponseStr is a string before calling .match()
+            if (typeof rawResponseStr !== 'string') {
+                rawResponseStr = String(rawResponseStr);
             }
             
-            // 🚀 FIX 2: Bulletproof JSON Extraction
-            // This safely ignores DeepSeek <think> blocks and conversational filler
+            // 3. Extract just the JSON object from the AI's response
             const jsonMatch = rawResponseStr.match(/\{[\s\S]*\}/);
             
             if (!jsonMatch) {
-                throw new Error("No JSON object could be extracted from the AI's response.");
+                // If it completely failed, log exactly what the AI returned so we can see it
+                console.error("Failed to find JSON in AI response. Raw string was:", rawResponseStr);
+                throw new Error("No JSON object could be extracted. The AI returned: " + rawResponseStr.substring(0, 100) + "...");
             }
 
             const result = JSON.parse(jsonMatch[0]);
@@ -198,12 +216,6 @@ export class AnalysisObject {
             this.result = result;
             this.status = 'complete';
             await this.state.storage.put({ status: this.status, result: this.result, error: null });
-
-        } catch (e: any) {
-            console.error("AI Analysis execution failed:", e);
-            this.status = 'error';
-            this.error = `Analysis failed: ${e.message}`;
-            await this.state.storage.put({ status: this.status, result: null, error: this.error });
         }
     }
 
