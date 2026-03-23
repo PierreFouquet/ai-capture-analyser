@@ -29,7 +29,6 @@ export class AnalysisObject {
         });
     }
 
-    // This triggers automatically when the alarm goes off (6 hours after last use)
     async alarm() {
         console.log("6 hours of inactivity reached. Cleaning up Durable Object storage.");
         await this.state.storage.deleteAll();
@@ -38,14 +37,12 @@ export class AnalysisObject {
         this.error = null;
     }
 
-    // Helper to reset the 6-hour cleanup timer on every interaction
     private async resetCleanupTimer() {
         const sixHoursFromNow = Date.now() + 6 * 60 * 60 * 1000;
         await this.state.storage.setAlarm(sixHoursFromNow);
     }
 
     async fetch(request: Request): Promise<Response> {
-        // Reset the 6-hour deletion timer every time the object is accessed
         await this.resetCleanupTimer();
 
         const url = new URL(request.url);
@@ -105,11 +102,33 @@ export class AnalysisObject {
 
         try {
             const requestBody = await request.json();
+
+            // 🚀 FIX 1: Run AI in the background. DO NOT await it here.
+            // This prevents the connection from timing out and allows your frontend to start polling immediately.
+            this.state.waitUntil(this.executeAIAnalysis(requestBody));
+
+            return new Response(JSON.stringify({ status: 'processing' }), {
+                headers: { 'Content-Type': 'application/json' },
+                status: 202 // HTTP 202 Accepted (Processing started)
+            });
+
+        } catch (e: any) {
+            this.status = 'error';
+            this.error = `Failed to start analysis: ${e.message}`;
+            await this.state.storage.put({ status: this.status, result: null, error: this.error });
+            return new Response(JSON.stringify({ status: this.status, error: this.error }), {
+                headers: { 'Content-Type': 'application/json' },
+                status: 500
+            });
+        }
+    }
+
+    // 🚀 Background Worker Logic
+    private async executeAIAnalysis(requestBody: any) {
+        try {
             const { type, llm_model_key } = requestBody;
 
-            if (!this.env.AI) {
-                throw new Error("AI binding is not available in this environment");
-            }
+            if (!this.env.AI) throw new Error("AI binding is not available in this environment");
 
             let promptToUse;
             if (type === 'analysis') {
@@ -134,9 +153,7 @@ export class AnalysisObject {
             let response;
             let lastError;
             
-            // ✅ FIX: Try `messages` format FIRST. Modern CF models strictly require this.
             try {
-                console.log("Trying messages format for model:", llm_model_key);
                 response = await this.env.AI.run(llm_model_key, {
                     messages: [
                         { role: "system", content: "You are an expert network analyst. Return ONLY raw JSON matching the requested schema." },
@@ -145,14 +162,10 @@ export class AnalysisObject {
                 });
             } catch (messagesError) {
                 lastError = messagesError;
-                console.log("Messages format failed, trying prompt format...");
-                
                 try {
                     response = await this.env.AI.run(llm_model_key, { prompt: promptToUse });
                 } catch (promptError) {
                     lastError = promptError;
-                    console.log("Prompt format failed, trying input format...");
-                    
                     try {
                         response = await this.env.AI.run(llm_model_key, { input: promptToUse });
                     } catch (inputError) {
@@ -164,42 +177,33 @@ export class AnalysisObject {
 
             if (!response) throw new Error("AI returned an empty response");
 
-            let result;
-            try {
-                // Handle different response structures from different models
-                let rawResponseStr = "";
-                if (typeof response === 'string') rawResponseStr = response;
-                else if (response.response) rawResponseStr = response.response;
-                else if (response.result) rawResponseStr = response.result;
-                else if (response.choices && response.choices.length > 0 && response.choices[0].message) {
-                    rawResponseStr = response.choices[0].message.content;
-                }
-                
-                // Clean up any markdown formatting the AI might have wrapped the JSON in
-                rawResponseStr = rawResponseStr.replace(/```json/g, '').replace(/```/g, '').trim();
-                result = JSON.parse(rawResponseStr);
-
-            } catch (e) {
-                console.error("Failed to parse AI response as JSON:", response);
-                result = { raw_response: response, error: "Failed to parse response as JSON" };
+            let rawResponseStr = "";
+            if (typeof response === 'string') rawResponseStr = response;
+            else if (response.response) rawResponseStr = response.response;
+            else if (response.result) rawResponseStr = response.result;
+            else if (response.choices && response.choices.length > 0 && response.choices[0].message) {
+                rawResponseStr = response.choices[0].message.content;
             }
+            
+            // 🚀 FIX 2: Bulletproof JSON Extraction
+            // This safely ignores DeepSeek <think> blocks and conversational filler
+            const jsonMatch = rawResponseStr.match(/\{[\s\S]*\}/);
+            
+            if (!jsonMatch) {
+                throw new Error("No JSON object could be extracted from the AI's response.");
+            }
+
+            const result = JSON.parse(jsonMatch[0]);
 
             this.result = result;
             this.status = 'complete';
             await this.state.storage.put({ status: this.status, result: this.result, error: null });
 
-            return new Response(JSON.stringify({ status: this.status, result: this.result }), {
-                headers: { 'Content-Type': 'application/json' }
-            });
-
         } catch (e: any) {
+            console.error("AI Analysis execution failed:", e);
             this.status = 'error';
             this.error = `Analysis failed: ${e.message}`;
             await this.state.storage.put({ status: this.status, result: null, error: this.error });
-            return new Response(JSON.stringify({ status: this.status, error: this.error }), {
-                headers: { 'Content-Type': 'application/json' },
-                status: 500
-            });
         }
     }
 
