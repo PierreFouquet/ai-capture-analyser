@@ -2,19 +2,27 @@
 
 // llm_models: A list of available LLM models.
 export const llm_models = {
-    // Fast & Reliable
-    "@cf/meta/llama-3.1-8b-instruct-fast": {
-        name: "Meta Llama 3.1 (8B)",
+    // --- TOP TIER REASONING & LOGIC ---
+    "@cf/qwen/qwq-32b": {
+        name: "Qwen QwQ (32B) - High Reasoning",
         provider: "Cloudflare"
     },
-    // Top Tier Reasoning & Analysis
+    "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {
+        name: "DeepSeek R1 (32B) - High Reasoning",
+        provider: "Cloudflare"
+    },
     "@cf/meta/llama-3.3-70b-instruct-fp8-fast": {
         name: "Meta Llama 3.3 (70B) - Deep Analysis",
         provider: "Cloudflare"
     },
-    // Deep Reasoning
-    "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {
-        name: "DeepSeek R1 (32B) - Reasoning Model",
+
+    // --- FAST & HIGHLY CAPABLE ---
+    "@cf/mistralai/mistral-small-3.1-24b-instruct": {
+        name: "Mistral Small 3.1 (24B) - Fast",
+        provider: "Cloudflare"
+    },
+    "@cf/meta/llama-3.1-8b-instruct-fast": {
+        name: "Meta Llama 3.1 (8B) - Fast",
         provider: "Cloudflare"
     }
 };

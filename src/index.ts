@@ -216,6 +216,12 @@ export class AnalysisObject {
 
             const result = JSON.parse(jsonMatch[0]);
 
+            // Catch Llama 3.3 returning empty objects
+            if (Object.keys(result).length === 0) {
+                console.error("AI returned an empty JSON object. Raw string:", rawResponseStr);
+                throw new Error("The AI model returned an empty report. Please try analyzing the file again or use a different model.");
+            }
+
             this.result = result;
             this.status = 'complete';
             await this.state.storage.put({ status: this.status, result: this.result, error: null });
@@ -247,14 +253,14 @@ export class AnalysisObject {
             const schema = JSON.stringify(llm_prompts.analysis_pcap_explanation_schema, null, 2);
             return `${llm_prompts.analysis_pcap_explanation_template
                 .replace('{pcap_data_snippet}', data.pcap_data_snippet)
-                .replace('{file_name}', data.file_name)}\n\nIMPORTANT: Respond with ONLY a single JSON object that strictly adheres to the following schema. DO NOT include any other text, explanations, or code block markers (like \`\`\`json\`\`\`): \n${schema}`;
+                .replace('{file_name}', data.file_name)}\n\nIMPORTANT: You must fully populate the JSON schema below with your analysis. DO NOT return an empty object. Return ONLY the raw JSON object and no other text:\n${schema}`;
         } else if (type === 'comparison') {
             const schema = JSON.stringify(llm_prompts.comparison_pcap_explanation_schema, null, 2);
             return `${llm_prompts.comparison_pcap_explanation_template
                 .replace('{pcap_data_snippet1}', data.pcap_data_snippet1)
                 .replace('{pcap_data_snippet2}', data.pcap_data_snippet2)
                 .replace('{label1}', data.label1)
-                .replace('{label2}', data.label2)}\n\nIMPORTANT: Respond with ONLY a single JSON object that strictly adheres to the following schema. DO NOT include any other text, explanations, or code block markers (like \`\`\`json\`\`\`): \n${schema}`;
+                .replace('{label2}', data.label2)}\n\nIMPORTANT: You must fully populate the JSON schema below with your comparison. DO NOT return an empty object. Return ONLY the raw JSON object and no other text:\n${schema}`;
         }
         return '';
     }

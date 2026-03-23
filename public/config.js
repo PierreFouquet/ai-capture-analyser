@@ -2,29 +2,39 @@
 
 // llm_models: A list of available LLM models.
 export const llm_models = {
-    "@cf/meta/llama-3.1-8b-instruct-fast": {
-        name: "Meta Llama 3.1 (8B)",
+    // --- TOP TIER REASONING & LOGIC ---
+    "@cf/qwen/qwq-32b": {
+        name: "Qwen QwQ (32B) - High Reasoning",
+        provider: "Cloudflare"
+    },
+    "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {
+        name: "DeepSeek R1 (32B) - High Reasoning",
         provider: "Cloudflare"
     },
     "@cf/meta/llama-3.3-70b-instruct-fp8-fast": {
         name: "Meta Llama 3.3 (70B) - Deep Analysis",
         provider: "Cloudflare"
     },
-    "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {
-        name: "DeepSeek R1 (32B) - Reasoning Model",
+
+    // --- FAST & HIGHLY CAPABLE ---
+    "@cf/mistralai/mistral-small-3.1-24b-instruct": {
+        name: "Mistral Small 3.1 (24B) - Fast",
+        provider: "Cloudflare"
+    },
+    "@cf/meta/llama-3.1-8b-instruct-fast": {
+        name: "Meta Llama 3.1 (8B) - Fast",
         provider: "Cloudflare"
     }
 };
 
 // llm_settings: Global LLM settings
 const llm_settings = {
-    default_llm_model_analysis: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
-    default_llm_model_comparison: "@cf/meta/llama-3.3-70b-instruct-fp8-fast",
+    default_llm_model_analysis: "@cf/meta/llama-3.1-8b-instruct-fast",
+    default_llm_model_comparison: "@cf/meta/llama-3.1-8b-instruct-fast",
 };
 
 // llm_prompts: Prompt templates and JSON schemas for LLM interactions.
 const llm_prompts = {
-    // (This remains exactly the same as your original file, keeping it identical to the TS version)
     analysis_pcap_explanation_template: `
     You are an expert SIP and RTP packet analyst. Your task is to analyze a raw PCAP file snippet and provide a detailed report.
     The user will provide a snippet of raw PCAP data.
