@@ -2,63 +2,33 @@
 
 // llm_models: A list of available LLM models.
 export const llm_models = {
-    // Cloudflare Workers AI Models
-    "@cf/openai/gpt-oss-120b": {
-        name: "GPT OSS 120b",
-        provider: "Cloudflare"
-    },
-    "@cf/openai/gpt-oss-20b": {
-        name: "GPT OSS 20b",
+    // Top Tier Reasoning & Analysis
+    "@cf/meta/llama-3.3-70b-instruct-fp8-fast": {
+        name: "Meta Llama 3.3 (70B) - Highly Recommended",
         provider: "Cloudflare"
     },
     "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {
         name: "DeepSeek R1 Distill Qwen 32B",
         provider: "Cloudflare"
     },
-    "@cf/deepseek-ai/deepseek-math-7b-instruct": {
-        name: "DeepSeek Math Instruct 7B",
+    // Fast & Efficient 
+    "@cf/meta/llama-3.1-8b-instruct": {
+        name: "Meta Llama 3.1 (8B)",
         provider: "Cloudflare"
     },
-    "@cf/microsoft/phi-2": {
-        name: "Microsoft Phi-2",
+    "@cf/google/gemma-2-9b-it": {
+        name: "Google Gemma 2 (9B)",
         provider: "Cloudflare"
     },
-    "@hf/google/gemma-7b-it": {
-        name: "Google Gemma 7b",
-        provider: "Cloudflare"
-    },
-    "@cf/google/gemma-3-12b-it": {
-        name: "Google Gemma 3 12b",
-        provider: "Cloudflare"
-    },
-    "@cf/meta/llama-4-scout-17b-16e-instruct": {
-        name: "Meta Llama 4 Scout",
+    // Legacy / Specialized
+    "@cf/qwen/qwen1.5-14b-chat-awq": {
+        name: "Qwen 1.5 (14B)",
         provider: "Cloudflare"
     },
     "@cf/mistral/mistral-7b-instruct-v0.2": {
         name: "Mistral 7b Instruct",
         provider: "Cloudflare"
-    },
-    "@cf/qwen/qwen-1.8b-chat": {
-        name: "Qwen 1.8b Chat",
-        provider: "Cloudflare"
-    },
-    "@cf/openchat/openchat-3.5-0106": {
-        name: "OpenChat 3.5",
-        provider: "Cloudflare"
-    },
-    "@cf/tiiuae/falcon-7b-instruct": {
-        name: "Falcon 7b Instruct",
-        provider: "Cloudflare"
-    },
-    "@cf/google/gemma-2-9b-it": {
-        name: "Google Gemma 2 9b",
-        provider: "Cloudflare"
-    },
-    "@cf/llama-4-scout-17b-16e-instruct": {
-        name: "Llama 4 Scout",
-        provider: "Cloudflare"
-    },
+    }
 };
 
 // llm_settings: Global LLM settings
