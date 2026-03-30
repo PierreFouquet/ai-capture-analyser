@@ -273,7 +273,11 @@ export default {
         if (url.pathname.startsWith("/api/analyze") || url.pathname.startsWith("/api/debug")) {
             const sessionId = request.headers.get("X-Session-ID") || "default";
             const id = env.ANALYSIS_OBJECT.idFromName(sessionId);
-            const stub = env.ANALYSIS_OBJECT.get(id);
+            
+            // Add 'en' (Western Europe/UK) as the hint
+            // This ensures the DO storage and processing stay in the UK region
+            const stub = env.ANALYSIS_OBJECT.get(id, { locationHint: 'en' }); 
+            
             return stub.fetch(request);
         }
 
