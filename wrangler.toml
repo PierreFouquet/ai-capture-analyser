@@ -8,7 +8,7 @@ routes = [
 ]
 
 [placement]
-mode = "smart"
+mode = "targeted"
 region = "aws:eu-west-2"
 
 [assets]
