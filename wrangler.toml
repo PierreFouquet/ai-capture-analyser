@@ -7,6 +7,10 @@ routes = [
   { pattern = "ai-capture-analyser.pierrefouquet.co.uk", custom_domain = true }
 ]
 
+[placement]
+mode = "smart"
+region = "aws:eu-west-2"
+
 [assets]
 directory = "./public"
 binding = "ASSETS"
