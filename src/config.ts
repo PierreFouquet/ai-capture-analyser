@@ -1,46 +1,20 @@
-// This file contains the configuration for the application.
-
-// llm_models: A list of available LLM models.
-export const llm_models = {
-    // --- TOP TIER REASONING & LOGIC ---
-    "@cf/qwen/qwq-32b": {
-        name: "Qwen QwQ (32B) - High Reasoning",
-        provider: "Cloudflare"
-    },
-    "@cf/deepseek-ai/deepseek-r1-distill-qwen-32b": {
-        name: "DeepSeek R1 (32B) - High Reasoning",
-        provider: "Cloudflare"
-    },
-    "@cf/meta/llama-3.3-70b-instruct-fp8-fast": {
-        name: "Meta Llama 3.3 (70B) - Deep Analysis",
-        provider: "Cloudflare"
-    },
-
-    // --- FAST & HIGHLY CAPABLE ---
-    "@cf/mistralai/mistral-small-3.1-24b-instruct": {
-        name: "Mistral Small 3.1 (24B) - Fast",
-        provider: "Cloudflare"
-    },
-    "@cf/meta/llama-3.1-8b-instruct-fast": {
-        name: "Meta Llama 3.1 (8B) - Fast",
-        provider: "Cloudflare"
-    }
-};
-
-// llm_settings: Global LLM settings
-export const llm_settings = {
-    // Cloudflare AI settings - these vary by model
-};
+// Server-side configuration for the Worker / Durable Object.
+//
+// This file holds ONLY the prompt templates and JSON schemas, which are used
+// exclusively on the server. The list of selectable models and the UI defaults
+// live in public/config.js (the browser is their only consumer), so there is no
+// duplication between the two files.
 
 // llm_prompts: Prompt templates and JSON schemas for LLM interactions.
 export const llm_prompts = {
     analysis_pcap_explanation_template: `
-    You are an expert SIP and RTP packet analyst. Your task is to analyze a raw PCAP file snippet and provide a detailed report.
-    The user will provide a snippet of raw PCAP data.
-    Your response must be a JSON object that adheres to the provided schema.
+    You are an expert network and VoIP (SIP/RTP) packet analyst. The statistics below were
+    extracted directly from a packet capture named "{file_name}". Base your report only on
+    these figures — do not invent values that contradict them. Your response must be a JSON
+    object that adheres to the provided schema.
     ---
-    PCAP Snippet ({file_name}):
-    {pcap_data_snippet}
+    Capture statistics:
+    {stats}
     `,
     analysis_pcap_explanation_schema: {
         type: "object",
@@ -76,15 +50,16 @@ export const llm_prompts = {
     },
 
     comparison_pcap_explanation_template: `
-    You are an expert SIP and RTP packet analyst. Your task is to compare two raw PCAP file snippets.
-    The user will provide two snippets of raw PCAP data, labeled {label1} and {label2}.
-    Your response must be a JSON object that adheres to the provided schema.
+    You are an expert network and VoIP (SIP/RTP) packet analyst. The statistics below were
+    extracted from two packet captures, labelled "{label1}" and "{label2}". Compare them,
+    basing your report only on these figures. Your response must be a JSON object that adheres
+    to the provided schema.
     ---
-    PCAP 1 Snippet ({label1}):
-    {pcap_data_snippet1}
+    Capture "{label1}" statistics:
+    {stats1}
     ---
-    PCAP 2 Snippet ({label2}):
-    {pcap_data_snippet2}
+    Capture "{label2}" statistics:
+    {stats2}
     `,
     comparison_pcap_explanation_schema: {
         type: "object",

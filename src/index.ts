@@ -1,4 +1,7 @@
-import { llm_settings, llm_prompts } from './config';
+import { formatPrompt, parseModelResponse } from './analysis';
+
+const STATE_KEY = 'analysisState';
+const MAX_TOKENS = 8000; // Headroom for reasoning models that "think" before answering.
 
 export interface AnalysisObjectState {
     status: 'idle' | 'processing' | 'complete' | 'error';
@@ -20,7 +23,7 @@ export class AnalysisObject {
         this.result = {};
 
         this.state.blockConcurrencyWhile(async () => {
-            const s = await this.state.storage.get<AnalysisObjectState>('analysisState');
+            const s = await this.state.storage.get<AnalysisObjectState>(STATE_KEY);
             if (s) {
                 this.status = s.status;
                 this.result = s.result;
@@ -35,6 +38,16 @@ export class AnalysisObject {
         this.status = 'idle';
         this.result = null;
         this.error = null;
+    }
+
+    // Persist the current state under a single key so the constructor can restore it.
+    private async persistState(): Promise<void> {
+        const snapshot: AnalysisObjectState = {
+            status: this.status,
+            result: this.result,
+            error: this.error ?? undefined,
+        };
+        await this.state.storage.put(STATE_KEY, snapshot);
     }
 
     private async resetCleanupTimer() {
@@ -61,8 +74,9 @@ export class AnalysisObject {
         } catch (e: any) {
             this.status = 'error';
             this.error = e.message;
-            await this.state.storage.put({ status: this.status, error: this.error, result: null });
-            return new Response(JSON.stringify({ status: this.status, error: this.error }), { 
+            this.result = null;
+            await this.persistState();
+            return new Response(JSON.stringify({ status: this.status, error: this.error }), {
                 status: 500,
                 headers: { 'Content-Type': 'application/json' }
             });
@@ -98,7 +112,7 @@ export class AnalysisObject {
         this.status = 'processing';
         this.result = null;
         this.error = null;
-        await this.state.storage.put({ status: this.status, result: null, error: null });
+        await this.persistState();
 
         try {
             const requestBody = await request.json();
@@ -131,19 +145,17 @@ export class AnalysisObject {
 
             let promptToUse;
             if (type === 'analysis') {
-                const { pcap_data, file_name } = requestBody;
-                const decodedData = this.b64ToArrayBuffer(pcap_data);
-                const pcapSnippet = this.extractPcapSnippet(decodedData, 2048);
-                promptToUse = this.formatPrompt('analysis', { pcap_data_snippet: pcapSnippet, file_name: file_name });
+                const { pcap_summary, file_name } = requestBody;
+                if (!pcap_summary) throw new Error("Missing capture statistics in request.");
+                promptToUse = formatPrompt('analysis', { fileName: file_name, summary: pcap_summary });
             } else if (type === 'comparison') {
-                const { pcap_data1, pcap_data2, file_name1, file_name2 } = requestBody;
-                const decodedData1 = this.b64ToArrayBuffer(pcap_data1);
-                const pcapSnippet1 = this.extractPcapSnippet(decodedData1, 2048);
-                const decodedData2 = this.b64ToArrayBuffer(pcap_data2);
-                const pcapSnippet2 = this.extractPcapSnippet(decodedData2, 2048);
-                promptToUse = this.formatPrompt('comparison', {
-                    pcap_data_snippet1: pcapSnippet1, pcap_data_snippet2: pcapSnippet2,
-                    label1: file_name1, label2: file_name2,
+                const { pcap_summary1, pcap_summary2, file_name1, file_name2 } = requestBody;
+                if (!pcap_summary1 || !pcap_summary2) throw new Error("Missing capture statistics in request.");
+                promptToUse = formatPrompt('comparison', {
+                    label1: file_name1,
+                    label2: file_name2,
+                    summary1: pcap_summary1,
+                    summary2: pcap_summary2,
                 });
             } else {
                 throw new Error("Invalid analysis type provided.");
@@ -158,111 +170,37 @@ export class AnalysisObject {
                         { role: "system", content: "You are an expert network analyst. Return ONLY raw JSON matching the requested schema. Do NOT wrap it in markdown." },
                         { role: "user", content: promptToUse }
                     ],
-                    max_tokens: 3000 // Expanded to allow deep reasoning models to finish
+                    max_tokens: MAX_TOKENS
                 });
             } catch (messagesError) {
                 lastError = messagesError;
                 try {
-                    response = await this.env.AI.run(llm_model_key, { prompt: promptToUse, max_tokens: 3000 });
+                    response = await this.env.AI.run(llm_model_key, { prompt: promptToUse, max_tokens: MAX_TOKENS });
                 } catch (promptError) {
                     lastError = promptError;
                     try {
-                        response = await this.env.AI.run(llm_model_key, { input: promptToUse, max_tokens: 3000 });
+                        response = await this.env.AI.run(llm_model_key, { input: promptToUse, max_tokens: MAX_TOKENS });
                     } catch (inputError) {
                         lastError = inputError;
-                        throw new Error(`All AI execution formats failed. Last error: ${lastError.message}`);
+                        throw new Error(`All AI execution formats failed. Last error: ${(lastError as Error).message}`);
                     }
                 }
             }
 
             if (!response) throw new Error("AI returned an empty response");
 
-            let rawResponseStr = "";
-            
-            if (typeof response === 'string') {
-                rawResponseStr = response;
-            } else {
-                if (response.response && typeof response.response === 'string') {
-                    rawResponseStr = response.response;
-                } else if (response.result && typeof response.result === 'string') {
-                    rawResponseStr = response.result;
-                } else if (response.result && response.result.response && typeof response.result.response === 'string') {
-                    rawResponseStr = response.result.response;
-                } else if (response.choices && response.choices.length > 0 && response.choices[0].message) {
-                    rawResponseStr = String(response.choices[0].message.content);
-                } else {
-                    rawResponseStr = JSON.stringify(response);
-                }
-            }
-
-            if (typeof rawResponseStr !== 'string') {
-                rawResponseStr = String(rawResponseStr);
-            }
-
-            // Strip DeepSeek <think> blocks
-            let stringToParse = rawResponseStr;
-            if (stringToParse.includes('</think>')) {
-                stringToParse = stringToParse.split('</think>')[1];
-            } else if (stringToParse.includes('<think>')) {
-                throw new Error("The AI model took too long to 'think' and hit Cloudflare's limit before generating the report. Try Llama 3.1 instead.");
-            }
-            
-            const jsonMatch = stringToParse.match(/\{[\s\S]*\}/);
-            
-            if (!jsonMatch) {
-                console.error("Failed to find JSON in AI response. Raw string was:", rawResponseStr);
-                throw new Error("No JSON object could be extracted. The AI returned: " + rawResponseStr.substring(0, 100) + "...");
-            }
-
-            const result = JSON.parse(jsonMatch[0]);
-
-            // Catch Llama 3.3 returning empty objects
-            if (Object.keys(result).length === 0) {
-                console.error("AI returned an empty JSON object. Raw string:", rawResponseStr);
-                throw new Error("The AI model returned an empty report. Please try analyzing the file again or use a different model.");
-            }
-
-            this.result = result;
+            this.result = parseModelResponse(response);
             this.status = 'complete';
-            await this.state.storage.put({ status: this.status, result: this.result, error: null });
+            this.error = null;
+            await this.persistState();
 
         } catch (e: any) {
             console.error("AI Analysis execution failed:", e);
             this.status = 'error';
+            this.result = null;
             this.error = `Analysis failed: ${e.message}`;
-            await this.state.storage.put({ status: this.status, result: null, error: this.error });
+            await this.persistState();
         }
-    }
-
-    private b64ToArrayBuffer(base64: string): ArrayBuffer {
-        const binaryString = atob(base64);
-        const len = binaryString.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) bytes[i] = binaryString.charCodeAt(i);
-        return bytes.buffer;
-    }
-
-    private extractPcapSnippet(buffer: ArrayBuffer, size: number): string {
-        const bytes = new Uint8Array(buffer);
-        const snippet = bytes.slice(0, size);
-        return Array.from(snippet).map(byte => byte.toString(16).padStart(2, '0')).join('');
-    }
-
-    private formatPrompt(type: 'analysis' | 'comparison', data: any): string {
-        if (type === 'analysis') {
-            const schema = JSON.stringify(llm_prompts.analysis_pcap_explanation_schema, null, 2);
-            return `${llm_prompts.analysis_pcap_explanation_template
-                .replace('{pcap_data_snippet}', data.pcap_data_snippet)
-                .replace('{file_name}', data.file_name)}\n\nIMPORTANT: You must fully populate the JSON schema below with your analysis. DO NOT return an empty object. Return ONLY the raw JSON object and no other text:\n${schema}`;
-        } else if (type === 'comparison') {
-            const schema = JSON.stringify(llm_prompts.comparison_pcap_explanation_schema, null, 2);
-            return `${llm_prompts.comparison_pcap_explanation_template
-                .replace('{pcap_data_snippet1}', data.pcap_data_snippet1)
-                .replace('{pcap_data_snippet2}', data.pcap_data_snippet2)
-                .replace('{label1}', data.label1)
-                .replace('{label2}', data.label2)}\n\nIMPORTANT: You must fully populate the JSON schema below with your comparison. DO NOT return an empty object. Return ONLY the raw JSON object and no other text:\n${schema}`;
-        }
-        return '';
     }
 }
 
@@ -273,11 +211,11 @@ export default {
         if (url.pathname.startsWith("/api/analyze") || url.pathname.startsWith("/api/debug")) {
             const sessionId = request.headers.get("X-Session-ID") || "default";
             const id = env.ANALYSIS_OBJECT.idFromName(sessionId);
-            
-            // Add 'en' (Western Europe/UK) as the hint
-            // This ensures the DO storage and processing stay in the UK region
-            const stub = env.ANALYSIS_OBJECT.get(id, { locationHint: 'en' }); 
-            
+
+            // 'weur' (Western Europe) keeps the DO's storage and processing close to
+            // the UK, matching the targeted placement region in wrangler.toml.
+            const stub = env.ANALYSIS_OBJECT.get(id, { locationHint: 'weur' });
+
             return stub.fetch(request);
         }
 
@@ -288,6 +226,9 @@ export default {
 interface Env {
     ANALYSIS_OBJECT: DurableObjectNamespace;
     ASSETS: Fetcher;
-    AI: any; 
-    config: any;
+    // The Workers AI binding. Typed loosely because the model key is chosen at
+    // runtime, which the strongly-per-model `Ai` type does not accommodate.
+    AI: {
+        run(model: string, inputs: Record<string, unknown>, options?: Record<string, unknown>): Promise<unknown>;
+    };
 }

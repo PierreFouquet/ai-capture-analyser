@@ -1,25 +1,20 @@
 {
-  "name": "pcap-analyzer-app",
-  "version": "1.0.0",
-  "description": "A web application for analyzing and comparing network packet captures using LLM models.",
-  "main": "app.js",
-  "scripts": {
-    "start": "node server.js"
-  },
+  "name": "pcap-analyzer-frontend",
+  "version": "1.1.0",
+  "private": true,
+  "description": "Static frontend for the AI PCAP Analyzer. Served by the Cloudflare Worker as assets; libraries below are loaded from a CDN at runtime (no build step).",
+  "type": "module",
   "dependencies": {
-    "chart.js": "^4.4.3",
-    "html2canvas": "^1.4.1",
-    "jspdf": "^2.5.1",
-    "marked": "^13.0.0"
+    "chart.js": "4.5.1",
+    "jspdf": "4.2.1"
   },
-  "devDependencies": {},
   "keywords": [
     "pcap",
     "network",
     "analysis",
     "llm",
     "packet-capture",
-    "web-app"
+    "cloudflare-workers"
   ],
   "author": "Pierre Fouquet",
   "license": "MIT"
