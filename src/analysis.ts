@@ -33,8 +33,12 @@ export function extractResponseText(response: unknown): string {
     const r = response as Record<string, any>;
 
     if (typeof r.response === 'string') return r.response;
+    // Some models (e.g. Llama 4 Scout) return the structured output as an
+    // already-parsed object under `response`, alongside tool_calls/usage.
+    if (r.response && typeof r.response === 'object') return JSON.stringify(r.response);
     if (typeof r.result === 'string') return r.result;
     if (r.result && typeof r.result.response === 'string') return r.result.response;
+    if (r.result && typeof r.result === 'object') return JSON.stringify(r.result);
 
     // OpenAI chat-completions shape.
     const choice = r.choices?.[0];

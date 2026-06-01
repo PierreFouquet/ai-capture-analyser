@@ -38,6 +38,15 @@ describe('extractResponseText', () => {
         expect(extractResponseText(res)).toBe('chat-text');
     });
 
+    it('reads an already-parsed object under response (Llama 4 Scout shape)', () => {
+        const res = { response: { summary: 'ok' }, tool_calls: [], usage: { total_tokens: 1 } };
+        expect(extractResponseText(res)).toBe('{"summary":"ok"}');
+    });
+
+    it('reads an already-parsed object under result', () => {
+        expect(extractResponseText({ result: { summary: 'ok' } })).toBe('{"summary":"ok"}');
+    });
+
     it('reads the gpt-oss harmony output array and skips reasoning', () => {
         const res = {
             output: [
@@ -99,6 +108,15 @@ describe('parseModelResponse', () => {
 
     it('throws on an empty response', () => {
         expect(() => parseModelResponse(null)).toThrow(/empty response/i);
+    });
+
+    it('parses the Llama 4 Scout wrapper (object response + tool_calls)', () => {
+        const res = {
+            response: { summary: 'done', protocol_distribution: { TCP: 100 } },
+            tool_calls: [],
+            usage: { total_tokens: 42 },
+        };
+        expect(parseModelResponse(res)).toEqual({ summary: 'done', protocol_distribution: { TCP: 100 } });
     });
 });
 
