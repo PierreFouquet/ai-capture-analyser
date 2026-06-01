@@ -9,90 +9,56 @@ export class Backend {
         return 'session-' + Date.now() + '-' + Math.random().toString(36).substring(2, 9);
     }
 
-    // Function to convert an ArrayBuffer to a Base64 string in chunks
-    arrayBufferToBase64(buffer) {
-        let binary = '';
-        const bytes = new Uint8Array(buffer);
-        const len = bytes.byteLength;
-        for (let i = 0; i < len; i++) {
-            binary += String.fromCharCode(bytes[i]);
-        }
-        return window.btoa(binary);
-    }
-
-    async analyzePcap(file, llmModelKey) {
-        // Read the file as an ArrayBuffer
-        const arrayBuffer = await file.arrayBuffer();
-        // Convert the ArrayBuffer to a Base64 string for transmission
-        const base64PcapData = this.arrayBufferToBase64(arrayBuffer);
-
+    // Send a request to the analyse endpoint and poll for the result. Only the
+    // aggregated capture statistics are sent — never the raw packet bytes.
+    async submitAndPoll(payload, failurePrefix) {
         try {
-            // Use the single, unified API endpoint
             const response = await fetch('/api/analyze', {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
-                    'X-Session-ID': this.sessionId
+                    'X-Session-ID': this.sessionId,
                 },
-                body: JSON.stringify({
-                    type: 'analysis',
-                    pcap_data: base64PcapData,
-                    file_name: file.name,
-                    llm_model_key: llmModelKey,
-                }),
+                body: JSON.stringify(payload),
             });
 
             const responseData = await response.json();
-            
+
             if (!response.ok) {
                 throw new Error(responseData.error || `Server responded with status ${response.status}`);
             }
 
-            // Start polling the status endpoint to get the final result
             return this.pollStatus('/api/analyze/status');
         } catch (error) {
             console.error('API call failed:', error);
-            throw new Error(`Analysis failed: ${error.message}`);
+            throw new Error(`${failurePrefix}: ${error.message}`);
         }
     }
 
-    async comparePcaps(file1, file2, llmModelKey) {
-        const arrayBuffer1 = await file1.arrayBuffer();
-        const base64PcapData1 = this.arrayBufferToBase64(arrayBuffer1);
+    async analyzePcap(summary, fileName, llmModelKey) {
+        return this.submitAndPoll(
+            {
+                type: 'analysis',
+                pcap_summary: summary,
+                file_name: fileName,
+                llm_model_key: llmModelKey,
+            },
+            'Analysis failed'
+        );
+    }
 
-        const arrayBuffer2 = await file2.arrayBuffer();
-        const base64PcapData2 = this.arrayBufferToBase64(arrayBuffer2);
-        
-        try {
-            // Use the single, unified API endpoint
-            const response = await fetch('/api/analyze', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                    'X-Session-ID': this.sessionId
-                },
-                body: JSON.stringify({
-                    type: 'comparison',
-                    pcap_data1: base64PcapData1,
-                    file_name1: file1.name,
-                    pcap_data2: base64PcapData2,
-                    file_name2: file2.name,
-                    llm_model_key: llmModelKey,
-                }),
-            });
-
-            const responseData = await response.json();
-            
-            if (!response.ok) {
-                throw new Error(responseData.error || `Server responded with status ${response.status}`);
-            }
-
-            // Start polling the status endpoint to get the final result
-            return this.pollStatus('/api/analyze/status');
-        } catch (error) {
-            console.error('API call failed:', error);
-            throw new Error(`Comparison failed: ${error.message}`);
-        }
+    async comparePcaps(summary1, fileName1, summary2, fileName2, llmModelKey) {
+        return this.submitAndPoll(
+            {
+                type: 'comparison',
+                pcap_summary1: summary1,
+                file_name1: fileName1,
+                pcap_summary2: summary2,
+                file_name2: fileName2,
+                llm_model_key: llmModelKey,
+            },
+            'Comparison failed'
+        );
     }
 
     // Function to poll the status of the analysis job

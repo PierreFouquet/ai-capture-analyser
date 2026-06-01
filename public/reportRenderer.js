@@ -1,5 +1,6 @@
 // Report rendering utilities
 import { ChartRenderer } from './chartRenderer.js';
+import { escapeHtml } from './escape.js';
 
 export class ReportRenderer {
     constructor() {
@@ -21,44 +22,44 @@ export class ReportRenderer {
 
         const html = `
             <div class="report-analysis">
-                <h3 class="text-xl font-semibold text-gray-800 mb-4">Analysis Report: ${fileName}</h3>
-                
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Analysis Report: ${escapeHtml(fileName)}</h3>
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div class="bg-gray-50 p-4 rounded-lg">
                         <h4 class="font-medium text-gray-700 mb-2">Summary</h4>
-                        <p class="text-gray-600">${summary}</p>
+                        <p class="text-gray-600">${escapeHtml(summary)}</p>
                     </div>
-                    
+
                     <div class="bg-gray-50 p-4 rounded-lg">
                         <h4 class="font-medium text-gray-700 mb-2">Key Statistics</h4>
                         <ul class="text-gray-600">
-                            <li>Packet Count: ${packetCount}</li>
-                            <li>Duration: ${duration}</li>
-                            <li>SIP/RTP Info: ${sipRtpInfo}</li>
+                            <li>Packet Count: ${escapeHtml(packetCount)}</li>
+                            <li>Duration: ${escapeHtml(duration)}</li>
+                            <li>SIP/RTP Info: ${escapeHtml(sipRtpInfo)}</li>
                         </ul>
                     </div>
                 </div>
-                
+
                 <div class="mb-6">
                     <h4 class="font-medium text-gray-700 mb-2">Protocol Distribution</h4>
                     <div class="h-64">
                         <canvas id="protocol-chart"></canvas>
                     </div>
                 </div>
-                
+
                 <div class="mb-6">
                     <h4 class="font-medium text-gray-700 mb-2">Anomalies & Errors</h4>
-                    ${anomalies.length > 0 ? 
+                    ${anomalies.length > 0 ?
                         `<ul class="list-disc list-inside text-gray-600">
-                            ${anomalies.map(anomaly => `<li>${anomaly}</li>`).join('')}
-                        </ul>` : 
+                            ${anomalies.map(anomaly => `<li>${escapeHtml(anomaly)}</li>`).join('')}
+                        </ul>` :
                         '<p class="text-gray-600">No anomalies detected.</p>'
                     }
                 </div>
-                
+
                 <div class="mb-6">
                     <h4 class="font-medium text-gray-700 mb-2">Important Timestamps/Packets</h4>
-                    <p class="text-gray-600">${timestamps}</p>
+                    <p class="text-gray-600">${escapeHtml(timestamps)}</p>
                 </div>
             </div>
         `;
@@ -85,48 +86,48 @@ export class ReportRenderer {
 
         const html = `
             <div class="report-comparison">
-                <h3 class="text-xl font-semibold text-gray-800 mb-4">Comparison Report: ${file1Name} vs ${file2Name}</h3>
-                
+                <h3 class="text-xl font-semibold text-gray-800 mb-4">Comparison Report: ${escapeHtml(file1Name)} vs ${escapeHtml(file2Name)}</h3>
+
                 <div class="mb-6">
                     <h4 class="font-medium text-gray-700 mb-2">Overall Comparison Summary</h4>
-                    <p class="text-gray-600">${summary}</p>
+                    <p class="text-gray-600">${escapeHtml(summary)}</p>
                 </div>
-                
+
                 <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
                     <div class="bg-gray-50 p-4 rounded-lg">
                         <h4 class="font-medium text-gray-700 mb-2">Key Differences</h4>
-                        ${keyDifferences.length > 0 ? 
+                        ${keyDifferences.length > 0 ?
                             `<ul class="list-disc list-inside text-gray-600">
-                                ${keyDifferences.map(diff => `<li>${diff}</li>`).join('')}
-                            </ul>` : 
+                                ${keyDifferences.map(diff => `<li>${escapeHtml(diff)}</li>`).join('')}
+                            </ul>` :
                             '<p class="text-gray-600">No significant differences found.</p>'
                         }
                     </div>
-                    
+
                     <div class="bg-gray-50 p-4 rounded-lg">
                         <h4 class="font-medium text-gray-700 mb-2">Key Similarities</h4>
-                        ${keySimilarities.length > 0 ? 
+                        ${keySimilarities.length > 0 ?
                             `<ul class="list-disc list-inside text-gray-600">
-                                ${keySimilarities.map(sim => `<li>${sim}</li>`).join('')}
-                            </ul>` : 
+                                ${keySimilarities.map(sim => `<li>${escapeHtml(sim)}</li>`).join('')}
+                            </ul>` :
                             '<p class="text-gray-600">No significant similarities found.</p>'
                         }
                     </div>
                 </div>
-                
+
                 <div class="mb-6">
                     <h4 class="font-medium text-gray-700 mb-2">Security Implications</h4>
-                    ${securityImplications.length > 0 ? 
+                    ${securityImplications.length > 0 ?
                         `<ul class="list-disc list-inside text-gray-600">
-                            ${securityImplications.map(impl => `<li>${impl}</li>`).join('')}
-                        </ul>` : 
+                            ${securityImplications.map(impl => `<li>${escapeHtml(impl)}</li>`).join('')}
+                        </ul>` :
                         '<p class="text-gray-600">No security implications identified.</p>'
                     }
                 </div>
-                
+
                 <div class="mb-6">
                     <h4 class="font-medium text-gray-700 mb-2">Important Timestamps/Packets</h4>
-                    <p class="text-gray-600">${timestamps}</p>
+                    <p class="text-gray-600">${escapeHtml(timestamps)}</p>
                 </div>
             </div>
         `;

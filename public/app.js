@@ -44,13 +44,12 @@ export class PCAPAnalyzerApp {
     }
     
     populateLlmModels() {
-        // Assume this is imported correctly from config.js
-        const { llm_models } = window.pcapAnalyzerConfig; 
+        const { llm_models, llm_settings } = window.pcapAnalyzerConfig;
         const select1 = this.llmModelSelect1;
         const select2 = this.llmModelSelect2;
 
         for (const key in llm_models) {
-            if (llm_models.hasOwnProperty(key)) {
+            if (Object.prototype.hasOwnProperty.call(llm_models, key)) {
                 const option1 = document.createElement('option');
                 option1.value = key;
                 option1.textContent = llm_models[key].name;
@@ -62,10 +61,19 @@ export class PCAPAnalyzerApp {
                 select2.appendChild(option2);
             }
         }
+
+        // Pre-select the configured defaults (falls back to the first option if absent).
+        if (llm_settings?.default_llm_model_analysis) {
+            select1.value = llm_settings.default_llm_model_analysis;
+        }
+        if (llm_settings?.default_llm_model_comparison) {
+            select2.value = llm_settings.default_llm_model_comparison;
+        }
     }
 
     async startAnalysis() {
-        const file = this.pcapFile1.files[0] || this.pcapFile3.files[0];
+        // The "Analyze a Single PCAP" card uses the first file input.
+        const file = this.pcapFile1.files[0];
         const llmModelKey = this.llmModelSelect1.value;
 
         if (!file) {
@@ -73,14 +81,17 @@ export class PCAPAnalyzerApp {
             return;
         }
 
-        this.showLoading('Analyzing PCAP data. This may take a moment...');
+        this.showLoading('Parsing capture and analyzing. This may take a moment...');
         this.hideReport();
 
         try {
-            const result = await this.backend.analyzePcap(file, llmModelKey);
+            const summary = await this.pcapParser.parse(file);
+            const result = await this.backend.analyzePcap(summary, file.name, llmModelKey);
             this.currentAnalysisData = {
                 type: 'analysis',
-                data: result,
+                // Overlay the real, locally-parsed figures so the chart and stats
+                // reflect the actual capture rather than the model's estimate.
+                data: this.mergeRealStats(result, summary),
                 fileName: file.name
             };
             this.renderReport(this.currentAnalysisData);
@@ -93,8 +104,9 @@ export class PCAPAnalyzerApp {
     }
 
     async startComparison() {
-        const file1 = this.pcapFile1.files[0];
-        const file2 = this.pcapFile2.files[0];
+        // The "Compare Two PCAP Files" card uses the second and third file inputs.
+        const file1 = this.pcapFile2.files[0];
+        const file2 = this.pcapFile3.files[0];
         const llmModelKey = this.llmModelSelect2.value;
 
         if (!file1 || !file2) {
@@ -102,11 +114,17 @@ export class PCAPAnalyzerApp {
             return;
         }
 
-        this.showLoading('Comparing PCAP data. This may take a moment...');
+        this.showLoading('Parsing captures and comparing. This may take a moment...');
         this.hideReport();
 
         try {
-            const result = await this.backend.comparePcaps(file1, file2, llmModelKey);
+            const [summary1, summary2] = await Promise.all([
+                this.pcapParser.parse(file1),
+                this.pcapParser.parse(file2),
+            ]);
+            const result = await this.backend.comparePcaps(
+                summary1, file1.name, summary2, file2.name, llmModelKey
+            );
             this.currentAnalysisData = {
                 type: 'comparison',
                 data: result,
@@ -120,6 +138,17 @@ export class PCAPAnalyzerApp {
         } finally {
             this.hideLoading();
         }
+    }
+
+    // Replace the AI's estimated figures with the real ones from the parser.
+    mergeRealStats(result, summary) {
+        const data = result || {};
+        return {
+            ...data,
+            protocol_distribution: summary.protocolDistribution,
+            packetCount: summary.packetCount,
+            duration: summary.durationSeconds,
+        };
     }
     
     renderReport(analysisData) {
