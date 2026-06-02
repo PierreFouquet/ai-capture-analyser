@@ -57,6 +57,16 @@ describe('createProtocolChart', () => {
         const result = new ChartRenderer().createProtocolChart({ TCP: 1 }, 'missing');
         expect(result).toBeNull();
     });
+
+    it('assigns a colour to every slice even with more protocols than the palette', () => {
+        addCanvas('protocol-chart');
+        const many = { TCP: 1, UDP: 1, SIP: 1, RTP: 1, DNS: 1, HTTP: 1, TLS: 1, ICMP: 1 }; // 8 > 6 colours
+        new ChartRenderer().createProtocolChart(many, 'protocol-chart');
+        const ds = charts[0].config.data.datasets[0];
+        expect(ds.backgroundColor).toHaveLength(8);
+        expect(ds.backgroundColor.every((c) => typeof c === 'string')).toBe(true);
+        expect(ds.borderColor).toHaveLength(8);
+    });
 });
 
 describe('createComparisonChart', () => {
@@ -71,6 +81,17 @@ describe('createComparisonChart', () => {
 
     it('returns null when the canvas is absent', () => {
         expect(new ChartRenderer().createComparisonChart({}, {}, 'nope', 'A', 'B')).toBeNull();
+    });
+
+    it('survives a one-sided null without throwing (regression)', () => {
+        addCanvas('cmp');
+        expect(() =>
+            new ChartRenderer().createComparisonChart(null, { TCP: 10 }, 'cmp', 'A', 'B')
+        ).not.toThrow();
+        expect(charts[0].config.data.labels).toEqual(['TCP']);
+        // The null side contributes 0 for every protocol.
+        expect(charts[0].config.data.datasets[0].data).toEqual([0]);
+        expect(charts[0].config.data.datasets[1].data).toEqual([10]);
     });
 });
 

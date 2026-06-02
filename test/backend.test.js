@@ -87,6 +87,46 @@ describe('Backend.pollStatus', () => {
         await vi.advanceTimersByTimeAsync(1000);
         await assertion;
     });
+
+    it('rejects when a status response is not ok', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 503, json: async () => ({}) })));
+        const backend = new Backend();
+        const promise = backend.pollStatus('/api/analyze/status');
+        const assertion = expect(promise).rejects.toThrow(/Status check failed: 503/);
+        await vi.advanceTimersByTimeAsync(1000);
+        await assertion;
+    });
+
+    it('gives up with a timeout when the job never finishes (abuse / stuck job)', async () => {
+        // Always 'processing': without a cap this would poll forever.
+        vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ status: 'processing' }) })));
+        const backend = new Backend();
+        const promise = backend.pollStatus('/api/analyze/status');
+        const assertion = expect(promise).rejects.toThrow(/timed out/i);
+        await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1000);
+        await assertion;
+    });
+
+    it('does not overlap requests when a status fetch is slower than the interval', async () => {
+        let inFlight = 0;
+        let maxConcurrent = 0;
+        const fetchMock = vi.fn(() => new Promise((resolve) => {
+            inFlight++;
+            maxConcurrent = Math.max(maxConcurrent, inFlight);
+            // Resolve after 3 poll intervals to simulate a slow status check.
+            setTimeout(() => {
+                inFlight--;
+                resolve({ ok: true, json: async () => ({ status: 'processing' }) });
+            }, 3000);
+        }));
+        vi.stubGlobal('fetch', fetchMock);
+
+        const backend = new Backend();
+        backend.pollStatus('/api/analyze/status').catch(() => {});
+        await vi.advanceTimersByTimeAsync(10000); // 10 ticks, but each request takes 3s
+
+        expect(maxConcurrent).toBe(1); // the in-flight guard prevents pile-ups
+    });
 });
 
 describe('Backend.submitAndPoll (end to end)', () => {
@@ -120,5 +160,27 @@ describe('Backend.submitAndPoll (end to end)', () => {
 
         const backend = new Backend();
         await expect(backend.submitAndPoll({}, 'Analysis failed')).rejects.toThrow(/Analysis failed: server boom/);
+    });
+
+    it('wraps a network failure during submit with the failure prefix', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('network down'); }));
+        const backend = new Backend();
+        await expect(backend.submitAndPoll({}, 'Comparison failed')).rejects.toThrow(/Comparison failed: network down/);
+    });
+});
+
+describe('Backend.debug', () => {
+    afterEach(() => vi.unstubAllGlobals());
+
+    it('returns the parsed debug payload on success', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => ({ ok: true, json: async () => ({ environment: { AI_AVAILABLE: true } }) })));
+        const backend = new Backend();
+        await expect(backend.debug()).resolves.toEqual({ environment: { AI_AVAILABLE: true } });
+    });
+
+    it('throws when the debug endpoint fails', async () => {
+        vi.stubGlobal('fetch', vi.fn(async () => ({ ok: false, status: 500 })));
+        const backend = new Backend();
+        await expect(backend.debug()).rejects.toThrow(/Debug check failed: 500/);
     });
 });

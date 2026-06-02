@@ -1,6 +1,6 @@
 {
   "name": "ai-capture-analyser",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Cloudflare Worker that analyses and compares network packet captures (PCAP/PCAPNG) with Workers AI.",
   "type": "module",
@@ -10,10 +10,12 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "test:coverage": "vitest run --coverage"
+    "test:coverage": "vitest run --coverage",
+    "test:e2e": "playwright test"
   },
   "devDependencies": {
     "@cloudflare/workers-types": "^4.20260601.1",
+    "@playwright/test": "^1.60.0",
     "@vitest/coverage-v8": "^4.1.8",
     "jsdom": "^29.1.1",
     "typescript": "^6.0.3",
