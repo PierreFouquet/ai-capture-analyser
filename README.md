@@ -8,8 +8,10 @@ large language model produces a plain‑English report; upload two and it compar
 ## How it works
 
 1. **The browser parses the capture.** `public/pcapParser.js` reads the file locally and
-   extracts aggregate statistics (packet count, duration, protocol distribution, SIP/RTP
-   signals). **Raw packets never leave your machine** — only the summary is sent on.
+   extracts aggregate statistics — packet count, duration, protocol distribution, SIP/RTP
+   signals, packet sizes, throughput, IPv4/IPv6 split, top talkers, conversations, top ports
+   and TCP connection health (SYN/SYN-ACK/FIN/RST). **Raw packets never leave your machine** —
+   only the summary is sent on.
 2. **The Worker prompts the model.** The summary is POSTed to `/api/analyze`. A
    [Durable Object](https://developers.cloudflare.com/durable-objects/) runs the chosen
    model via the `AI` binding, polling‑based so long‑running models don't time out the
@@ -41,12 +43,19 @@ Qwen3 30b.
 ```bash
 npm install        # install dev tooling (wrangler, vitest, typescript…)
 npm run dev        # run locally with wrangler
-npm test           # run the test suite
+npm test           # run the unit/integration suite (Vitest + jsdom)
 npm run typecheck  # type-check the Worker
+
+# Real-browser end-to-end tests (Playwright): actual file upload, in-browser
+# parsing, Chart.js/jsPDF, and export. Requires a one-time browser download.
+npx playwright install chromium
+npm run test:e2e
 ```
 
 The frontend libraries (Chart.js, jsPDF, Tailwind) are loaded from a CDN at runtime, so
-there is no frontend build step.
+there is no frontend build step. The Vitest suite covers both the Worker and the frontend
+modules under jsdom; the Playwright suite (`test/e2e/`) drives the real app in a browser with
+the `/api/*` backend mocked per-test.
 
 ## Deployment
 

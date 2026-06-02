@@ -127,8 +127,9 @@ export class AnalysisObject {
 
         } catch (e: any) {
             this.status = 'error';
+            this.result = null;
             this.error = `Failed to start analysis: ${e.message}`;
-            await this.state.storage.put({ status: this.status, result: null, error: this.error });
+            await this.persistState();
             return new Response(JSON.stringify({ status: this.status, error: this.error }), {
                 headers: { 'Content-Type': 'application/json' },
                 status: 500

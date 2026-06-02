@@ -95,6 +95,31 @@ describe('startAnalysis', () => {
 
         expect(warn).toHaveBeenCalledWith(expect.stringContaining('bad capture'), true);
     });
+
+    it('attaches the full parsed summary as capture_stats for the report', async () => {
+        const summary = { protocolDistribution: { TCP: 100 }, packetCount: 5, durationSeconds: 2, endpoints: { unique: 2, top: [] } };
+        setFiles(app.pcapFile1, [{ name: 'a.pcap', size: 100 }]);
+        app.pcapParser = { parse: vi.fn().mockResolvedValue(summary) };
+        app.backend = { analyzePcap: vi.fn().mockResolvedValue({ summary: 'ok' }) };
+
+        await app.startAnalysis();
+
+        expect(app.currentAnalysisData.data.capture_stats).toBe(summary);
+    });
+
+    it('ignores rapid repeated clicks (only one run despite 100 clicks)', async () => {
+        const summary = { protocolDistribution: {}, packetCount: 1, durationSeconds: 1 };
+        setFiles(app.pcapFile1, [{ name: 'a.pcap', size: 100 }]);
+        // A parse that resolves on the next macrotask so all clicks land while busy.
+        app.pcapParser = { parse: vi.fn(() => new Promise((r) => setTimeout(() => r(summary), 0))) };
+        app.backend = { analyzePcap: vi.fn().mockResolvedValue({ summary: 'ok' }) };
+
+        const clicks = Array.from({ length: 100 }, () => app.startAnalysis());
+        await Promise.all(clicks);
+
+        expect(app.pcapParser.parse).toHaveBeenCalledTimes(1);
+        expect(app.backend.analyzePcap).toHaveBeenCalledTimes(1);
+    });
 });
 
 describe('startComparison', () => {
@@ -112,7 +137,23 @@ describe('startComparison', () => {
         expect(app.backend.comparePcaps).toHaveBeenCalledWith(
             summary, 'first.pcap', summary, 'second.pcap', '@cf/google/gemma-4-26b-a4b-it'
         );
-        expect(app.reportRenderer.renderComparisonReport).toHaveBeenCalled();
+        // Real parsed stats are kept and passed through to the renderer for the chart.
+        expect(app.currentAnalysisData.capture1_stats).toBe(summary);
+        expect(app.currentAnalysisData.capture2_stats).toBe(summary);
+        expect(app.reportRenderer.renderComparisonReport).toHaveBeenCalledWith(
+            expect.anything(), 'first.pcap', 'second.pcap', summary, summary
+        );
+    });
+
+    it('surfaces a comparison error to the user', async () => {
+        setFiles(app.pcapFile2, [{ name: 'first.pcap', size: 10 }]);
+        setFiles(app.pcapFile3, [{ name: 'second.pcap', size: 10 }]);
+        app.pcapParser = { parse: vi.fn().mockRejectedValue(new Error('corrupt capture')) };
+        const warn = vi.spyOn(app, 'showMessage');
+
+        await app.startComparison();
+
+        expect(warn).toHaveBeenCalledWith(expect.stringContaining('corrupt capture'), true);
     });
 
     it('warns when fewer than two files are chosen', async () => {
@@ -149,6 +190,34 @@ describe('exports', () => {
         expect(msg).toHaveBeenCalledWith(expect.stringContaining('JSON'), false);
     });
 
+    it('exportJSON encodes the full data including capture_stats and new AI fields', () => {
+        app.currentAnalysisData = {
+            type: 'analysis',
+            fileName: 'a.pcap',
+            data: {
+                summary: 's',
+                traffic_health: 'healthy',
+                security_assessment: 'clean',
+                issues_and_recommendations: [{ issue: 'i', likely_cause: 'c', suggested_resolution: 'r' }],
+                capture_stats: { endpoints: { unique: 3 }, tcpFlags: { syn: 1, synAck: 1, fin: 0, rst: 0 } },
+            },
+        };
+        let capturedHref = '';
+        vi.spyOn(HTMLAnchorElement.prototype, 'setAttribute').mockImplementation(function (name, value) {
+            if (name === 'href') capturedHref = value;
+        });
+        vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+        app.exportJSON();
+
+        const json = decodeURIComponent(capturedHref.replace(/^data:application\/json;charset=utf-8,/, ''));
+        const parsed = JSON.parse(json);
+        expect(parsed.data.traffic_health).toBe('healthy');
+        expect(parsed.data.security_assessment).toBe('clean');
+        expect(parsed.data.issues_and_recommendations[0].likely_cause).toBe('c');
+        expect(parsed.data.capture_stats.endpoints.unique).toBe(3);
+    });
+
     it('exportPDF delegates to the comparison exporter for a comparison report', () => {
         app.currentAnalysisData = { type: 'comparison', data: { x: 1 }, file1Name: 'a.pcap', file2Name: 'b.pcap' };
         app.pdfExporter = { exportAnalysisReport: vi.fn(), exportComparisonReport: vi.fn() };
@@ -173,5 +242,19 @@ describe('exports', () => {
         app.pdfExporter = { exportAnalysisReport: vi.fn() };
         app.exportPDF();
         expect(app.pdfExporter.exportAnalysisReport).not.toHaveBeenCalled();
+    });
+
+    it('stays a no-op when export buttons are spammed 100x with no data (abuse)', () => {
+        app.currentAnalysisData = null;
+        app.pdfExporter = { exportAnalysisReport: vi.fn(), exportComparisonReport: vi.fn() };
+        vi.spyOn(HTMLAnchorElement.prototype, 'click').mockImplementation(() => {});
+
+        for (let i = 0; i < 100; i++) {
+            app.exportPDF();
+            app.exportJSON();
+        }
+
+        expect(app.pdfExporter.exportAnalysisReport).not.toHaveBeenCalled();
+        expect(app.pdfExporter.exportComparisonReport).not.toHaveBeenCalled();
     });
 });

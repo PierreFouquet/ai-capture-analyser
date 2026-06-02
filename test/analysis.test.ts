@@ -57,6 +57,25 @@ describe('extractResponseText', () => {
         expect(extractResponseText(res)).toBe('{"a":1}');
     });
 
+    it('reads the { output_text } shape', () => {
+        expect(extractResponseText({ output_text: 'plain answer' })).toBe('plain answer');
+    });
+
+    it('coerces non-string OpenAI message content', () => {
+        const res = { choices: [{ message: { content: 42 } }] };
+        expect(extractResponseText(res)).toBe('42');
+    });
+
+    it('joins harmony content parts given as plain strings', () => {
+        const res = { output: [{ type: 'message', content: ['{"a":', '1}'] }] };
+        expect(extractResponseText(res)).toBe('{"a":1}');
+    });
+
+    it('falls back past an empty harmony output to output_text', () => {
+        const res = { output: [{ type: 'reasoning', content: [{ text: 'just thinking' }] }], output_text: 'final' };
+        expect(extractResponseText(res)).toBe('final');
+    });
+
     it('falls back to JSON.stringify for unknown shapes', () => {
         expect(extractResponseText({ weird: true })).toBe('{"weird":true}');
     });
@@ -78,6 +97,10 @@ describe('stripThinkBlock', () => {
 
     it('throws on an unterminated think block', () => {
         expect(() => stripThinkBlock('<think>still going')).toThrow(/token budget/i);
+    });
+
+    it('returns empty when nothing follows the closed think block', () => {
+        expect(stripThinkBlock('<think>done</think>')).toBe('');
     });
 });
 
@@ -141,6 +164,43 @@ describe('summarizeStats', () => {
     it('flags truncated captures', () => {
         expect(summarizeStats({ ...sampleSummary, truncated: true })).toContain('capped');
     });
+
+    it('omits the duration line when duration is null', () => {
+        expect(summarizeStats({ ...sampleSummary, durationSeconds: null })).not.toContain('Capture duration');
+    });
+
+    it('notes when no protocols were detected', () => {
+        expect(summarizeStats({ ...sampleSummary, protocolDistribution: {} })).toContain('none detected');
+    });
+
+    it('renders the expanded fields when present', () => {
+        const rich = {
+            ...sampleSummary,
+            packetSizeBytes: { min: 60, max: 1500, average: 540 },
+            throughput: { packetsPerSecond: 120, bitsPerSecond: 980000 },
+            ipVersions: { ipv4: 1200, ipv6: 34 },
+            endpoints: { unique: 12, top: [{ name: '10.0.0.1', count: 800 }] },
+            conversations: { unique: 9, top: [{ name: '10.0.0.1 <-> 10.0.0.2', count: 500 }] },
+            topPorts: [{ name: '443', count: 600 }],
+            tcpFlags: { syn: 30, synAck: 25, fin: 20, rst: 5 },
+        };
+        const text = summarizeStats(rich);
+        expect(text).toContain('Packet size (bytes): min 60, average 540, max 1500');
+        expect(text).toContain('Throughput');
+        expect(text).toContain('IP version split');
+        expect(text).toContain('top talkers');
+        expect(text).toContain('10.0.0.1 <-> 10.0.0.2');
+        expect(text).toContain('443');
+        expect(text).toContain('TCP health');
+        expect(text).toContain('5 reset(s)');
+    });
+
+    it('stays backward compatible when the expanded fields are absent', () => {
+        // sampleSummary has none of the new fields — must not throw or emit them.
+        const text = summarizeStats(sampleSummary);
+        expect(text).not.toContain('TCP health');
+        expect(text).not.toContain('top talkers');
+    });
 });
 
 describe('formatPrompt', () => {
@@ -151,6 +211,22 @@ describe('formatPrompt', () => {
         expect(prompt).toContain('"summary"'); // schema field
         expect(prompt).not.toContain('{file_name}');
         expect(prompt).not.toContain('{stats}');
+    });
+
+    it('includes the expanded analysis schema fields', () => {
+        const prompt = formatPrompt('analysis', { fileName: 'c.pcap', summary: sampleSummary });
+        expect(prompt).toContain('"traffic_health"');
+        expect(prompt).toContain('"security_assessment"');
+        expect(prompt).toContain('"issues_and_recommendations"');
+        expect(prompt).toContain('"suggested_resolution"');
+    });
+
+    it('includes the issues_and_recommendations field in the comparison schema', () => {
+        const prompt = formatPrompt('comparison', {
+            label1: 'a.pcap', label2: 'b.pcap', summary1: sampleSummary, summary2: sampleSummary,
+        });
+        expect(prompt).toContain('"issues_and_recommendations"');
+        expect(prompt).toContain('"likely_cause"');
     });
 
     it('replaces every label placeholder in a comparison prompt', () => {

@@ -60,6 +60,36 @@ describe('PDFExporter.exportAnalysisReport', () => {
         expect(lastDoc.texts.join('\n')).toContain('A concise summary');
         expect(lastDoc.texts.join('\n')).toContain('weird packet');
     });
+
+    it('includes the new sections: traffic health, security, top talkers, issues', () => {
+        new PDFExporter().exportAnalysisReport(
+            {
+                summary: 's',
+                traffic_health: 'Healthy connections',
+                security_assessment: 'No concerns',
+                issues_and_recommendations: [
+                    { issue: 'High RST rate', likely_cause: 'Port scan', suggested_resolution: 'Block the source' },
+                ],
+                capture_stats: { endpoints: { top: [{ name: '10.0.0.1', count: 9 }] } },
+            },
+            'capture.pcap'
+        );
+        const text = lastDoc.texts.join('\n');
+        expect(text).toContain('Traffic Health');
+        expect(text).toContain('Healthy connections');
+        expect(text).toContain('Security Assessment');
+        expect(text).toContain('Top Talkers');
+        expect(text).toContain('10.0.0.1 — 9 packets');
+        expect(text).toContain('Issues and Recommendations');
+        expect(text).toContain('High RST rate');
+        expect(text).toContain('Port scan');
+        expect(text).toContain('Block the source');
+    });
+
+    it('renders the issues fallback when none are present', () => {
+        new PDFExporter().exportAnalysisReport({ summary: 's' }, 'capture.pcap');
+        expect(lastDoc.texts.join('\n')).toContain('No issues identified.');
+    });
 });
 
 describe('PDFExporter.exportComparisonReport', () => {
@@ -78,6 +108,24 @@ describe('PDFExporter.exportComparisonReport', () => {
 
         expect(lastDoc.savedAs).toBe('comparison-report-one.pcap-vs-two.pcap.pdf');
         expect(lastDoc.texts.join('\n')).toContain('They differ');
+    });
+
+    it('includes an Issues and Recommendations section', () => {
+        new PDFExporter().exportComparisonReport(
+            {
+                overall_comparison_summary: 'x',
+                key_differences: [], key_similarities: [], security_implications: [],
+                issues_and_recommendations: [
+                    { issue: 'Throughput dropped', likely_cause: 'Congestion', suggested_resolution: 'Add capacity' },
+                ],
+                important_timestamps_packets: 'N/A',
+            },
+            'one.pcap', 'two.pcap'
+        );
+        const text = lastDoc.texts.join('\n');
+        expect(text).toContain('Issues and Recommendations');
+        expect(text).toContain('Throughput dropped');
+        expect(text).toContain('Add capacity');
     });
 });
 

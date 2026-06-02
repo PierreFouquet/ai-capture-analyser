@@ -12,6 +12,12 @@ export class ChartRenderer {
         ];
     }
 
+    // Pick a palette colour for index i, cycling so captures with more protocols
+    // than the palette still get a distinct (repeating) colour rather than none.
+    colorAt(i) {
+        return this.colors[i % this.colors.length];
+    }
+
     createProtocolChart(protocolData, canvasId) {
         // Add a defensive check for protocolData
         if (!protocolData) {
@@ -28,15 +34,16 @@ export class ChartRenderer {
         
         const labels = Object.keys(protocolData);
         const data = Object.values(protocolData);
-        
+        const backgroundColor = labels.map((_, i) => this.colorAt(i));
+
         return new Chart(ctx.getContext('2d'), {
             type: 'doughnut',
             data: {
                 labels: labels,
                 datasets: [{
                     data: data,
-                    backgroundColor: this.colors.slice(0, labels.length),
-                    borderColor: this.colors.map(color => color.replace('0.7', '1')),
+                    backgroundColor,
+                    borderColor: backgroundColor.map(color => color.replace('0.7', '1')),
                     borderWidth: 1
                 }]
             },
@@ -71,8 +78,10 @@ export class ChartRenderer {
             return null;
         }
         
-        const protocols = [...new Set([...Object.keys(data1 || {}), ...Object.keys(data2 || {})])];
-        
+        const a = data1 || {};
+        const b = data2 || {};
+        const protocols = [...new Set([...Object.keys(a), ...Object.keys(b)])];
+
         return new Chart(ctx.getContext('2d'), {
             type: 'bar',
             data: {
@@ -80,13 +89,13 @@ export class ChartRenderer {
                 datasets: [
                     {
                         label: label1,
-                        data: protocols.map(protocol => data1[protocol] || 0),
-                        backgroundColor: this.colors[0]
+                        data: protocols.map(protocol => a[protocol] || 0),
+                        backgroundColor: this.colorAt(0)
                     },
                     {
                         label: label2,
-                        data: protocols.map(protocol => data2[protocol] || 0),
-                        backgroundColor: this.colors[1]
+                        data: protocols.map(protocol => b[protocol] || 0),
+                        backgroundColor: this.colorAt(1)
                     }
                 ]
             },

@@ -173,15 +173,32 @@ class StatsAccumulator {
         this.rtpPackets = 0;
         this.rtpStreams = new Set(); // ssrc values
         this.truncated = false;
+
+        // Expanded signal (all derived from headers already being walked).
+        this.minPacketSize = null;
+        this.maxPacketSize = 0;
+        this.ipv4Packets = 0;
+        this.ipv6Packets = 0;
+        this.endpoints = new Map(); // ip address -> packet count
+        this.conversations = new Map(); // "a <-> b" -> packet count
+        this.ports = new Map(); // destination port -> packet count
+        this.tcpFlags = { syn: 0, synAck: 0, fin: 0, rst: 0 };
     }
 
     bump(proto) {
         this.protocols.set(proto, (this.protocols.get(proto) || 0) + 1);
     }
 
+    bumpMap(map, key) {
+        map.set(key, (map.get(key) || 0) + 1);
+    }
+
     addPacket(view, timestamp, linkType) {
         this.packetCount++;
-        this.totalBytes += view.byteLength;
+        const len = view.byteLength;
+        this.totalBytes += len;
+        if (this.minPacketSize == null || len < this.minPacketSize) this.minPacketSize = len;
+        if (len > this.maxPacketSize) this.maxPacketSize = len;
         if (timestamp != null && Number.isFinite(timestamp)) {
             if (this.firstTs == null || timestamp < this.firstTs) this.firstTs = timestamp;
             if (this.lastTs == null || timestamp > this.lastTs) this.lastTs = timestamp;
@@ -231,6 +248,8 @@ class StatsAccumulator {
 
     dissectIPv4(view, offset) {
         if (offset + 20 > view.byteLength) { this.bump('IPv4'); return; }
+        this.ipv4Packets++;
+        this.recordEndpoints(readIPv4(view, offset + 12), readIPv4(view, offset + 16));
         const ihl = (view.getUint8(offset) & 0x0f) * 4;
         const protocol = view.getUint8(offset + 9);
         this.dissectTransport(view, offset + ihl, protocol);
@@ -238,8 +257,18 @@ class StatsAccumulator {
 
     dissectIPv6(view, offset) {
         if (offset + 40 > view.byteLength) { this.bump('IPv6'); return; }
+        this.ipv6Packets++;
+        this.recordEndpoints(readIPv6(view, offset + 8), readIPv6(view, offset + 24));
         const nextHeader = view.getUint8(offset + 6);
         this.dissectTransport(view, offset + 40, nextHeader);
+    }
+
+    // Record the source/destination addresses and the conversation between them.
+    recordEndpoints(src, dst) {
+        this.bumpMap(this.endpoints, src);
+        this.bumpMap(this.endpoints, dst);
+        const key = src <= dst ? `${src} <-> ${dst}` : `${dst} <-> ${src}`;
+        this.bumpMap(this.conversations, key);
     }
 
     dissectTransport(view, offset, protocol) {
@@ -248,6 +277,12 @@ class StatsAccumulator {
             if (offset + 20 > view.byteLength) { this.bump('TCP'); return; }
             const srcPort = view.getUint16(offset, false);
             const dstPort = view.getUint16(offset + 2, false);
+            this.bumpMap(this.ports, dstPort);
+            // Flags live in the low 6 bits of the byte at TCP offset 13.
+            const flags = view.getUint8(offset + 13);
+            if (flags & 0x02) { this.tcpFlags.syn++; if (flags & 0x10) this.tcpFlags.synAck++; }
+            if (flags & 0x01) this.tcpFlags.fin++;
+            if (flags & 0x04) this.tcpFlags.rst++;
             const dataOffset = (view.getUint8(offset + 12) >> 4) * 4;
             const payloadOffset = offset + dataOffset;
             this.classifyAppLayer(view, payloadOffset, srcPort, dstPort, 'TCP');
@@ -256,6 +291,7 @@ class StatsAccumulator {
             if (offset + 8 > view.byteLength) { this.bump('UDP'); return; }
             const srcPort = view.getUint16(offset, false);
             const dstPort = view.getUint16(offset + 2, false);
+            this.bumpMap(this.ports, dstPort);
             this.classifyAppLayer(view, offset + 8, srcPort, dstPort, 'UDP');
         } else if (protocol === 1) {
             this.bump('ICMP');
@@ -326,6 +362,15 @@ class StatsAccumulator {
                 ? Math.max(0, Number((this.lastTs - this.firstTs).toFixed(3)))
                 : null;
 
+        // Top-N entries of a count Map, highest first, as { name, count }.
+        const topN = (map, n) =>
+            [...map.entries()]
+                .sort((a, b) => b[1] - a[1])
+                .slice(0, n)
+                .map(([name, count]) => ({ name: String(name), count }));
+
+        const hasDuration = durationSeconds != null && durationSeconds > 0;
+
         return {
             format,
             packetCount: this.packetCount,
@@ -338,6 +383,60 @@ class StatsAccumulator {
                 rtpStreams: this.rtpStreams.size,
             },
             truncated: this.truncated,
+            packetSizeBytes: {
+                min: this.minPacketSize ?? 0,
+                max: this.maxPacketSize,
+                average: this.packetCount ? Math.round(this.totalBytes / this.packetCount) : 0,
+            },
+            throughput: {
+                packetsPerSecond: hasDuration
+                    ? Math.round((this.packetCount / durationSeconds) * 10) / 10
+                    : null,
+                bitsPerSecond: hasDuration
+                    ? Math.round((this.totalBytes * 8) / durationSeconds)
+                    : null,
+            },
+            ipVersions: { ipv4: this.ipv4Packets, ipv6: this.ipv6Packets },
+            endpoints: { unique: this.endpoints.size, top: topN(this.endpoints, 5) },
+            conversations: { unique: this.conversations.size, top: topN(this.conversations, 5) },
+            topPorts: topN(this.ports, 5),
+            tcpFlags: { ...this.tcpFlags },
         };
     }
+}
+
+// --- Address formatting helpers ---------------------------------------------
+
+/** Read a 4-byte IPv4 address as a dotted-quad string. */
+function readIPv4(view, p) {
+    return `${view.getUint8(p)}.${view.getUint8(p + 1)}.${view.getUint8(p + 2)}.${view.getUint8(p + 3)}`;
+}
+
+/** Read a 16-byte IPv6 address and format it with `::` zero-run compression. */
+function readIPv6(view, p) {
+    const groups = [];
+    for (let i = 0; i < 8; i++) groups.push(view.getUint16(p + i * 2, false));
+    return compressIPv6(groups);
+}
+
+/** Format eight 16-bit groups as a canonical, `::`-compressed IPv6 string. */
+function compressIPv6(groups) {
+    // Find the longest run of consecutive zero groups (must be length >= 2).
+    let bestStart = -1, bestLen = 0;
+    let curStart = -1, curLen = 0;
+    for (let i = 0; i < 8; i++) {
+        if (groups[i] === 0) {
+            if (curStart === -1) curStart = i;
+            curLen++;
+            if (curLen > bestLen) { bestLen = curLen; bestStart = curStart; }
+        } else {
+            curStart = -1;
+            curLen = 0;
+        }
+    }
+    const hex = groups.map((g) => g.toString(16));
+    if (bestLen < 2) return hex.join(':');
+    const head = hex.slice(0, bestStart).join(':');
+    const tail = hex.slice(bestStart + bestLen).join(':');
+    return `${head}::${tail}`;
 }

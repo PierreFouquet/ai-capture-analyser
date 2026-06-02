@@ -11,6 +11,8 @@ export class PCAPAnalyzerApp {
         this.pdfExporter = new PDFExporter();
         this.backend = new Backend();
         this.currentAnalysisData = null;
+        // Guards against re-entrant runs when the user clicks repeatedly.
+        this.isBusy = false;
 
         this.initializeDOMElements();
         this.bindEvents();
@@ -71,7 +73,16 @@ export class PCAPAnalyzerApp {
         }
     }
 
+    // Toggle the busy state and disable the action buttons so rapid repeated
+    // clicks can't launch overlapping analyses.
+    setBusy(busy) {
+        this.isBusy = busy;
+        this.startAnalysisBtn.disabled = busy;
+        this.startComparisonBtn.disabled = busy;
+    }
+
     async startAnalysis() {
+        if (this.isBusy) return; // ignore clicks while a run is in flight
         // The "Analyze a Single PCAP" card uses the first file input.
         const file = this.pcapFile1.files[0];
         const llmModelKey = this.llmModelSelect1.value;
@@ -81,6 +92,7 @@ export class PCAPAnalyzerApp {
             return;
         }
 
+        this.setBusy(true);
         this.showLoading('Parsing capture and analyzing. This may take a moment...');
         this.hideReport();
 
@@ -100,10 +112,12 @@ export class PCAPAnalyzerApp {
             this.showMessage(`Analysis failed: ${error.message || 'An unknown error occurred during analysis.'}`, true);
         } finally {
             this.hideLoading();
+            this.setBusy(false);
         }
     }
 
     async startComparison() {
+        if (this.isBusy) return; // ignore clicks while a run is in flight
         // The "Compare Two PCAP Files" card uses the second and third file inputs.
         const file1 = this.pcapFile2.files[0];
         const file2 = this.pcapFile3.files[0];
@@ -114,6 +128,7 @@ export class PCAPAnalyzerApp {
             return;
         }
 
+        this.setBusy(true);
         this.showLoading('Parsing captures and comparing. This may take a moment...');
         this.hideReport();
 
@@ -127,7 +142,11 @@ export class PCAPAnalyzerApp {
             );
             this.currentAnalysisData = {
                 type: 'comparison',
-                data: result,
+                data: result || {},
+                // Keep the real, locally-parsed figures for each capture so the
+                // chart and stat tables reflect the actual captures, not estimates.
+                capture1_stats: summary1,
+                capture2_stats: summary2,
                 file1Name: file1.name,
                 file2Name: file2.name
             };
@@ -137,10 +156,12 @@ export class PCAPAnalyzerApp {
             this.showMessage(`Comparison failed: ${error.message || 'An unknown error occurred during analysis.'}`, true);
         } finally {
             this.hideLoading();
+            this.setBusy(false);
         }
     }
 
-    // Replace the AI's estimated figures with the real ones from the parser.
+    // Replace the AI's estimated figures with the real ones from the parser, and
+    // attach the full parsed summary so the report can show trustworthy stats.
     mergeRealStats(result, summary) {
         const data = result || {};
         return {
@@ -148,6 +169,7 @@ export class PCAPAnalyzerApp {
             protocol_distribution: summary.protocolDistribution,
             packetCount: summary.packetCount,
             duration: summary.durationSeconds,
+            capture_stats: summary,
         };
     }
     
@@ -157,7 +179,13 @@ export class PCAPAnalyzerApp {
             this.reportContainer.innerHTML = renderResult.html;
             renderResult.postRender();
         } else if (analysisData.type === 'comparison') {
-            const renderResult = this.reportRenderer.renderComparisonReport(analysisData.data, analysisData.file1Name, analysisData.file2Name);
+            const renderResult = this.reportRenderer.renderComparisonReport(
+                analysisData.data,
+                analysisData.file1Name,
+                analysisData.file2Name,
+                analysisData.capture1_stats,
+                analysisData.capture2_stats
+            );
             this.reportContainer.innerHTML = renderResult.html;
             renderResult.postRender();
         }

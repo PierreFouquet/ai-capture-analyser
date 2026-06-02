@@ -7,6 +7,12 @@ import { llm_prompts } from './config';
 
 export type AnalysisType = 'analysis' | 'comparison';
 
+/** A top-N entry: a name (IP, conversation, port) and its packet count. */
+export interface CountEntry {
+    name: string;
+    count: number;
+}
+
 /** Aggregated statistics produced by the browser-side PCAP parser. */
 export interface PcapSummary {
     format: string;
@@ -16,6 +22,14 @@ export interface PcapSummary {
     protocolDistribution: Record<string, number>;
     sipRtp: { sipPackets: number; rtpPackets: number; rtpStreams: number };
     truncated: boolean;
+    // Expanded signal (optional: older/partial summaries may omit these).
+    packetSizeBytes?: { min: number; max: number; average: number };
+    throughput?: { packetsPerSecond: number | null; bitsPerSecond: number | null };
+    ipVersions?: { ipv4: number; ipv6: number };
+    endpoints?: { unique: number; top: CountEntry[] };
+    conversations?: { unique: number; top: CountEntry[] };
+    topPorts?: CountEntry[];
+    tcpFlags?: { syn: number; synAck: number; fin: number; rst: number };
 }
 
 /**
@@ -136,6 +150,61 @@ export function summarizeStats(summary: PcapSummary): string {
     } else {
         lines.push('VoIP signals: no SIP or RTP traffic detected');
     }
+
+    if (summary.packetSizeBytes) {
+        const { min, max, average } = summary.packetSizeBytes;
+        lines.push(`Packet size (bytes): min ${min}, average ${average}, max ${max}`);
+    }
+
+    if (summary.throughput && summary.throughput.packetsPerSecond != null) {
+        const { packetsPerSecond, bitsPerSecond } = summary.throughput;
+        lines.push(
+            `Throughput: ${packetsPerSecond.toLocaleString('en-GB')} packets/s, ` +
+            `${(bitsPerSecond ?? 0).toLocaleString('en-GB')} bits/s`
+        );
+    }
+
+    if (summary.ipVersions && (summary.ipVersions.ipv4 > 0 || summary.ipVersions.ipv6 > 0)) {
+        lines.push(
+            `IP version split: ${summary.ipVersions.ipv4} IPv4 packet(s), ` +
+            `${summary.ipVersions.ipv6} IPv6 packet(s)`
+        );
+    }
+
+    if (summary.endpoints) {
+        const top = summary.endpoints.top
+            .map((e) => `${e.name} (${e.count})`)
+            .join(', ');
+        lines.push(
+            `Unique hosts: ${summary.endpoints.unique}` +
+            (top ? `; top talkers (by packets): ${top}` : '')
+        );
+    }
+
+    if (summary.conversations) {
+        const top = summary.conversations.top
+            .map((c) => `${c.name} (${c.count})`)
+            .join(', ');
+        lines.push(
+            `Unique conversations: ${summary.conversations.unique}` +
+            (top ? `; busiest: ${top}` : '')
+        );
+    }
+
+    if (summary.topPorts && summary.topPorts.length > 0) {
+        const ports = summary.topPorts.map((p) => `${p.name} (${p.count})`).join(', ');
+        lines.push(`Top destination ports (by packets): ${ports}`);
+    }
+
+    if (summary.tcpFlags) {
+        const { syn, synAck, fin, rst } = summary.tcpFlags;
+        const synOnly = Math.max(0, syn - synAck);
+        lines.push(
+            `TCP health: ${synOnly} connection attempt(s) (SYN), ${synAck} accepted (SYN-ACK), ` +
+            `${fin} graceful close(s) (FIN), ${rst} reset(s) (RST)`
+        );
+    }
+
     return lines.join('\n');
 }
 

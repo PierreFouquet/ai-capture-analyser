@@ -1,3 +1,7 @@
+// How long to keep polling before giving up, and how often to poll.
+const MAX_POLL_MS = 5 * 60 * 1000; // 5 minutes
+const POLL_INTERVAL_MS = 1000;
+
 // This file handles all communication with the backend API
 export class Backend {
     constructor() {
@@ -64,16 +68,27 @@ export class Backend {
     // Function to poll the status of the analysis job
     pollStatus(statusUrl) {
         return new Promise((resolve, reject) => {
+            const startedAt = Date.now();
+            let inFlight = false; // prevent overlapping requests if a poll is slow
+
             const pollInterval = setInterval(async () => {
+                // Give up rather than spin forever on a stuck/processing job.
+                if (Date.now() - startedAt >= MAX_POLL_MS) {
+                    clearInterval(pollInterval);
+                    reject(new Error('Analysis timed out. Please try again, or use a faster model.'));
+                    return;
+                }
+                if (inFlight) return; // skip this tick; the previous request is still running
+                inFlight = true;
                 try {
                     const statusResponse = await fetch(statusUrl, {
                         headers: { 'X-Session-ID': this.sessionId }
                     });
-                    
+
                     if (!statusResponse.ok) {
                         throw new Error(`Status check failed: ${statusResponse.status}`);
                     }
-                    
+
                     const result = await statusResponse.json();
 
                     if (result.status === 'complete') {
@@ -87,8 +102,10 @@ export class Backend {
                 } catch (error) {
                     clearInterval(pollInterval);
                     reject(error);
+                } finally {
+                    inFlight = false;
                 }
-            }, 1000); // Poll every 1 second
+            }, POLL_INTERVAL_MS);
         });
     }
 
